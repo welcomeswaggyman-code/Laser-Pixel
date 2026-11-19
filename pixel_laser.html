@@ -1,0 +1,2773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pixel Laser - Retro 2D Arena Shooter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090a14;
+      --panel-bg: rgba(14, 18, 36, 0.95);
+      --border-cyan: #00f3ff;
+      --border-magenta: #ff2a85;
+      --text-light: #f0f4ff;
+      --text-muted: #8b9bb4;
+      --accent-gold: #ffd700;
+      --accent-green: #2ce8a2;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: 'Press Start 2P', monospace;
+      color: var(--text-light);
+      touch-action: none;
+    }
+
+    #game-wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #131836 0%, #070810 100%);
+    }
+
+    canvas {
+      display: block;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.18), 0 0 60px rgba(255, 42, 133, 0.12);
+      border: 3px solid #232b4d;
+      border-radius: 6px;
+      background-color: #0b0e1e;
+    }
+
+    /* Optional CRT Scanlines Overlay */
+    #scanlines {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      z-index: 15;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.24) 50%
+      );
+      background-size: 100% 4px;
+      opacity: 0.75;
+      transition: opacity 0.2s ease;
+    }
+
+    #scanlines.hidden {
+      opacity: 0;
+    }
+
+    /* Top Utility Controls Bar */
+    #top-bar {
+      position: fixed;
+      top: 10px;
+      right: 12px;
+      z-index: 30;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hud-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      padding: 8px 10px;
+      background: rgba(16, 22, 46, 0.9);
+      color: var(--text-light);
+      border: 2px solid #3c4b82;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 3px 0 #1b2240;
+      transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .hud-btn:hover {
+      border-color: var(--border-cyan);
+      background: rgba(24, 34, 70, 0.95);
+    }
+
+    .hud-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 #1b2240;
+    }
+
+    /* Modal / Menu Overlay */
+    .overlay-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(6, 8, 18, 0.84);
+      backdrop-filter: blur(4px);
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .overlay-screen.hidden {
+      display: none !important;
+    }
+
+    .menu-card {
+      width: 100%;
+      max-width: 720px;
+      background: var(--panel-bg);
+      border: 3px solid var(--border-cyan);
+      border-radius: 12px;
+      padding: 22px 20px;
+      box-shadow: 0 0 35px rgba(0, 243, 255, 0.25), inset 0 0 20px rgba(0, 243, 255, 0.08);
+      text-align: center;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+
+    .game-title {
+      font-size: clamp(22px, 4.8vw, 38px);
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #00f3ff, #ffffff, #ff2a85);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 4px 18px rgba(0, 243, 255, 0.35);
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      font-size: 10px;
+      color: var(--accent-gold);
+      margin-bottom: 18px;
+      letter-spacing: 1px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin: 14px 0 8px;
+      text-transform: uppercase;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .arcade-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(10px, 2vw, 12px);
+      padding: 11px 14px;
+      border-radius: 8px;
+      border: 2px solid #3e4e88;
+      background: #141b38;
+      color: #c5d1f5;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #0b0f22;
+      transition: all 0.1s ease;
+    }
+
+    .arcade-btn:hover {
+      border-color: #7c93e6;
+      color: #ffffff;
+    }
+
+    .arcade-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #0b0f22;
+    }
+
+    .arcade-btn.selected-cyan {
+      border-color: var(--border-cyan);
+      background: rgba(0, 243, 255, 0.18);
+      color: #ffffff;
+      box-shadow: 0 4px 0 #007a82, 0 0 12px rgba(0, 243, 255, 0.35);
+    }
+
+    .arcade-btn.selected-magenta {
+      border-color: var(--border-magenta);
+      background: rgba(255, 42, 133, 0.2);
+      color: #ffffff;
+      box-shadow: 0 4px 0 #8a1144, 0 0 12px rgba(255, 42, 133, 0.35);
+    }
+
+    .arcade-btn.diff-easy.selected {
+      border-color: #2ce8a2;
+      background: rgba(44, 232, 162, 0.2);
+      color: #fff;
+      box-shadow: 0 4px 0 #157a54;
+    }
+    .arcade-btn.diff-medium.selected {
+      border-color: #ffd700;
+      background: rgba(255, 215, 0, 0.2);
+      color: #fff;
+      box-shadow: 0 4px 0 #8c7600;
+    }
+    .arcade-btn.diff-hard.selected {
+      border-color: #ff8c00;
+      background: rgba(255, 140, 0, 0.22);
+      color: #fff;
+      box-shadow: 0 4px 0 #8c4d00;
+    }
+    .arcade-btn.diff-impossible.selected {
+      border-color: #ff2a85;
+      background: rgba(255, 42, 133, 0.25);
+      color: #fff;
+      box-shadow: 0 4px 0 #8a1144, 0 0 14px rgba(255, 42, 133, 0.5);
+    }
+
+    .start-btn {
+      margin-top: 16px;
+      width: 100%;
+      max-width: 340px;
+      padding: 15px 20px;
+      font-size: 14px;
+      background: linear-gradient(180deg, #00f3ff 0%, #0099cc 100%);
+      color: #050814;
+      border: 2px solid #ffffff;
+      border-radius: 10px;
+      font-family: 'Press Start 2P', monospace;
+      cursor: pointer;
+      box-shadow: 0 5px 0 #005577, 0 0 20px rgba(0, 243, 255, 0.5);
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+
+    .start-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    .start-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #005577;
+    }
+
+    .controls-legend {
+      margin-top: 18px;
+      padding: 12px;
+      background: rgba(8, 11, 24, 0.85);
+      border: 2px solid #26315e;
+      border-radius: 8px;
+      font-size: 9px;
+      line-height: 1.75;
+      color: #b5c2e8;
+      text-align: left;
+    }
+
+    .controls-legend strong.p1 {
+      color: #00f3ff;
+    }
+    .controls-legend strong.p2 {
+      color: #ff2a85;
+    }
+
+    /* Stats Grid on Victory Screen */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+      text-align: left;
+    }
+
+    .stat-box {
+      background: rgba(10, 14, 30, 0.9);
+      border: 2px solid #2b386b;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 9px;
+      line-height: 1.8;
+    }
+
+    .stat-box.p1-box {
+      border-color: rgba(0, 243, 255, 0.6);
+    }
+    .stat-box.p2-box {
+      border-color: rgba(255, 42, 133, 0.6);
+    }
+
+    /* Mobile Touch Controls Layer */
+    #touch-controls {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      display: none;
+    }
+
+    #touch-controls.active {
+      display: block;
+    }
+
+    .touch-zone {
+      position: absolute;
+      bottom: 14px;
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .touch-left-cluster {
+      left: 14px;
+    }
+
+    .touch-right-cluster {
+      right: 14px;
+    }
+
+    .touch-p1-split {
+      left: 10px;
+      bottom: 12px;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .touch-p2-split {
+      right: 10px;
+      bottom: 12px;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .touch-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .t-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      background: rgba(18, 26, 56, 0.56);
+      border: 2px solid rgba(0, 243, 255, 0.6);
+      color: rgba(255, 255, 255, 0.92);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      transition: background 0.05s, transform 0.05s;
+    }
+
+    .t-btn.pressed {
+      background: rgba(0, 243, 255, 0.48);
+      transform: scale(0.93);
+      border-color: #ffffff;
+    }
+
+    .t-btn.fire-btn {
+      width: 66px;
+      height: 66px;
+      border-color: rgba(255, 215, 0, 0.8);
+      background: rgba(255, 180, 0, 0.28);
+      font-size: 10px;
+    }
+
+    .t-btn.fire-btn.pressed {
+      background: rgba(255, 215, 0, 0.65);
+    }
+
+    .t-btn.p2-style {
+      border-color: rgba(255, 42, 133, 0.7);
+    }
+
+    .t-btn.p2-style.pressed {
+      background: rgba(255, 42, 133, 0.55);
+    }
+
+    .t-btn.small-split {
+      width: 46px;
+      height: 46px;
+      font-size: 11px;
+    }
+
+    @media (max-width: 600px) {
+      .t-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 11px;
+      }
+      .t-btn.fire-btn {
+        width: 58px;
+        height: 58px;
+      }
+      .hud-btn {
+        font-size: 8px;
+        padding: 6px 8px;
+      }
+      .menu-card {
+        padding: 16px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-wrapper">
+    <!-- Main Pixel Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- CRT Scanline Overlay -->
+    <div id="scanlines"></div>
+
+    <!-- Top Quick-Action Bar -->
+    <div id="top-bar">
+      <button id="btn-sound" class="hud-btn" title="Toggle Retro Sound">SFX: ON</button>
+      <button id="btn-scanlines" class="hud-btn" title="Toggle CRT Scanlines">CRT: ON</button>
+      <button id="btn-touch-toggle" class="hud-btn" title="Toggle On-Screen Touch Buttons">TOUCH: AUTO</button>
+      <button id="btn-pause" class="hud-btn" title="Pause / Settings">MENU</button>
+    </div>
+
+    <!-- On-Screen Touch Controls Container -->
+    <div id="touch-controls"></div>
+
+    <!-- MAIN MENU OVERLAY -->
+    <div id="main-menu" class="overlay-screen">
+      <div class="menu-card">
+        <h1 class="game-title">PIXEL LASER</h1>
+        <div class="subtitle">FIRST TO 5 ROUND WINS • CYBER ARENA DUEL</div>
+
+        <div class="section-label">1. SELECT GAME MODE</div>
+        <div class="btn-group" id="mode-group">
+          <button class="arcade-btn selected-cyan" data-mode="1vCPU">1 vs CPU</button>
+          <button class="arcade-btn" data-mode="1v1">1 vs 1 (2 PLAYER)</button>
+        </div>
+
+        <div id="cpu-diff-section">
+          <div class="section-label">2. CPU DIFFICULTY</div>
+          <div class="btn-group" id="diff-group">
+            <button class="arcade-btn diff-easy" data-diff="Easy">EASY</button>
+            <button class="arcade-btn diff-medium selected" data-diff="Medium">MEDIUM</button>
+            <button class="arcade-btn diff-hard" data-diff="Hard">HARD</button>
+            <button class="arcade-btn diff-impossible" data-diff="Impossible">IMPOSSIBLE</button>
+          </div>
+        </div>
+
+        <div class="section-label">3. ARENA &amp; RULES</div>
+        <div class="btn-group" id="arena-group">
+          <button class="arcade-btn selected-cyan" data-arena="cycle">CYCLE ARENAS</button>
+          <button class="arcade-btn" data-arena="0">NEON ROOFTOP</button>
+          <button class="arcade-btn" data-arena="1">CYBER FOUNDRY</button>
+          <button class="arcade-btn" data-arena="2">ZERO-G LAB</button>
+        </div>
+
+        <div class="btn-group" style="margin-top: 6px;">
+          <button class="arcade-btn selected-cyan" id="btn-powerups-toggle">POWER-UPS: ON</button>
+          <button class="arcade-btn selected-cyan" id="btn-hp-toggle">ROUND HP: 3</button>
+        </div>
+
+        <button class="start-btn" id="btn-start-match">START MATCH</button>
+
+        <div class="controls-legend" id="controls-legend-box">
+          <!-- Dynamically updated based on 1vCPU vs 1v1 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- PAUSE / IN-GAME SETTINGS MODAL -->
+    <div id="pause-menu" class="overlay-screen hidden">
+      <div class="menu-card" style="max-width: 460px;">
+        <h2 class="game-title" style="font-size: 24px;">GAME PAUSED</h2>
+        <div class="subtitle">MATCH IN PROGRESS</div>
+
+        <div class="btn-group" style="flex-direction: column; align-items: center; gap: 12px; margin-top: 16px;">
+          <button class="start-btn" id="btn-resume" style="margin-top: 0;">RESUME MATCH</button>
+          <button class="arcade-btn" id="btn-restart-match" style="width: 100%; max-width: 340px;">RESTART MATCH</button>
+          <button class="arcade-btn" id="btn-pause-powerups" style="width: 100%; max-width: 340px;">POWER-UPS: ON</button>
+          <button class="arcade-btn" id="btn-pause-touch" style="width: 100%; max-width: 340px;">TOUCH CONTROLS: AUTO</button>
+          <button class="arcade-btn" id="btn-to-main-menu" style="width: 100%; max-width: 340px; border-color: #ff2a85; color: #ff8ab8;">QUIT TO MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATCH VICTORY OVERLAY -->
+    <div id="victory-menu" class="overlay-screen hidden">
+      <div class="menu-card" style="max-width: 580px;">
+        <h2 class="game-title" id="victory-title">PLAYER 1 WINS!</h2>
+        <div class="subtitle" id="victory-subtitle">MATCH CHAMPION • 5 - 2</div>
+
+        <div class="stats-grid" id="victory-stats">
+          <!-- Populated dynamically at match end -->
+        </div>
+
+        <div class="btn-group" style="margin-top: 14px;">
+          <button class="start-btn" id="btn-play-again" style="margin-top: 0;">REMATCH</button>
+          <button class="arcade-btn" id="btn-victory-menu" style="padding: 15px 18px;">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * PIXEL LASER - Complete 2D Retro Pixel Art Arena Shooter
+     * Single-file self-contained architecture:
+     * 1. Retro Web Audio Synthesizer (zero external audio dependencies)
+     * 2. Logical Pixel Canvas Engine (800x450 internal resolution scaled cleanly)
+     * 3. Multi-Arena Geometry, Jump Pads, One-Way Drop-Through Platforms
+     * 4. Procedural Pixel-Art Character, Jetpack Sparks & Weapon Renderer
+     * 5. Smart 4-Tier CPU AI with Frame-Level Obstacle Lookahead & Auto-Vaulting
+     * 6. Multi-Touch Responsive Arcade Controls + Dual Keyboard Input
+     */
+
+    (() => {
+      'use strict';
+
+      // =========================================================================
+      // 1. RETRO SOUND SYNTHESIZER (WEB AUDIO API)
+      // =========================================================================
+      class RetroAudio {
+        constructor() {
+          this.ctx = null;
+          this.muted = false;
+        }
+
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        }
+
+        playTone(freqStart, freqEnd, duration, type = 'square', volume = 0.14, delay = 0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          const now = this.ctx.currentTime + delay;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freqStart, now);
+          if (freqEnd !== freqStart) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + duration);
+          }
+
+          gain.gain.setValueAtTime(volume, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + duration);
+        }
+
+        playNoise(duration, volume = 0.15) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 900;
+
+          const gain = this.ctx.createGain();
+          const now = this.ctx.currentTime;
+          gain.gain.setValueAtTime(volume, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          noise.start(now);
+          noise.stop(now + duration);
+        }
+
+        laser(pitchBoost = 1) {
+          this.playTone(960 * pitchBoost, 190 * pitchBoost, 0.11, 'sawtooth', 0.12);
+          this.playTone(1350 * pitchBoost, 320 * pitchBoost, 0.08, 'square', 0.08);
+        }
+
+        jump() {
+          this.playTone(180, 520, 0.14, 'square', 0.11);
+        }
+
+        jumpPad() {
+          this.playTone(240, 880, 0.22, 'triangle', 0.16);
+          this.playTone(360, 1180, 0.18, 'square', 0.08, 0.03);
+        }
+
+        hit() {
+          this.playNoise(0.14, 0.22);
+          this.playTone(220, 75, 0.16, 'sawtooth', 0.16);
+        }
+
+        shieldBlock() {
+          this.playTone(620, 980, 0.12, 'triangle', 0.15);
+        }
+
+        ko() {
+          this.playNoise(0.35, 0.28);
+          this.playTone(300, 55, 0.38, 'sawtooth', 0.2);
+          this.playTone(190, 42, 0.42, 'square', 0.16, 0.05);
+        }
+
+        powerup() {
+          this.playTone(440, 587, 0.08, 'square', 0.12, 0);
+          this.playTone(587, 784, 0.08, 'square', 0.12, 0.07);
+          this.playTone(784, 1046, 0.14, 'square', 0.14, 0.14);
+        }
+
+        countdown(go = false) {
+          if (go) {
+            this.playTone(523.25, 1046.5, 0.24, 'square', 0.15);
+          } else {
+            this.playTone(440, 440, 0.11, 'square', 0.11);
+          }
+        }
+
+        roundWin() {
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((n, idx) => {
+            this.playTone(n, n, 0.12, 'square', 0.13, idx * 0.085);
+          });
+        }
+
+        matchWin() {
+          const melody = [
+            { f: 523.25, d: 0.11, t: 0.00 },
+            { f: 659.25, d: 0.11, t: 0.11 },
+            { f: 783.99, d: 0.11, t: 0.22 },
+            { f: 1046.5, d: 0.24, t: 0.33 },
+            { f: 783.99, d: 0.11, t: 0.60 },
+            { f: 1046.5, d: 0.38, t: 0.72 }
+          ];
+          melody.forEach(m => this.playTone(m.f, m.f, m.d, 'square', 0.15, m.t));
+        }
+
+        click() {
+          this.playTone(720, 880, 0.05, 'square', 0.09);
+        }
+      }
+
+      const audio = new RetroAudio();
+
+      // =========================================================================
+      // 2. GAME CONSTANTS & ARENA DEFINITIONS
+      // =========================================================================
+      const GAME_W = 800;
+      const GAME_H = 450;
+      const WINS_NEEDED = 5;
+
+      const GRAVITY = 1520;
+      const MOVE_SPEED = 245;
+      const JUMP_VELOCITY = -540;
+      const JUMP_PAD_VELOCITY = -790;
+      const LASER_SPEED = 690;
+      const BASE_COOLDOWN = 0.30; // seconds
+
+      // Three distinct pixel arenas with solid cover blocks, one-way platforms, and jump pads
+      const ARENAS = [
+        {
+          name: 'NEON ROOFTOP',
+          skyTop: '#080b1c',
+          skyBottom: '#19133a',
+          accent: '#00f3ff',
+          trim: '#ff2a85',
+          theme: 'rooftop',
+          solids: [
+            // Ground floor
+            { x: 0, y: 408, w: 800, h: 42 },
+            // Center tactical cover pillar (can be jumped onto or vaulted over)
+            { x: 376, y: 344, w: 48, h: 64 }
+          ],
+          platforms: [
+            // Left & Right mid ledges
+            { x: 75, y: 305, w: 170, h: 12 },
+            { x: 555, y: 305, w: 170, h: 12 },
+            // Center high bridge
+            { x: 280, y: 215, w: 240, h: 12 },
+            // Top sniper perches
+            { x: 95, y: 135, w: 130, h: 12 },
+            { x: 575, y: 135, w: 130, h: 12 }
+          ],
+          jumpPads: [
+            { x: 26, y: 398, w: 36, h: 10 },
+            { x: 738, y: 398, w: 36, h: 10 }
+          ],
+          spawns: [
+            { x: 130, y: 368, facing: 1 },
+            { x: 670, y: 368, facing: -1 }
+          ],
+          powerupSpots: [
+            { x: 400, y: 185 },
+            { x: 160, y: 275 },
+            { x: 640, y: 275 },
+            { x: 400, y: 315 }
+          ]
+        },
+        {
+          name: 'CYBER FOUNDRY',
+          skyTop: '#14090c',
+          skyBottom: '#2d121a',
+          accent: '#ff8c00',
+          trim: '#ffd700',
+          theme: 'foundry',
+          solids: [
+            { x: 0, y: 408, w: 800, h: 42 },
+            // Side bunkers
+            { x: 185, y: 356, w: 36, h: 52 },
+            { x: 579, y: 356, w: 36, h: 52 }
+          ],
+          platforms: [
+            // Low center catwalk
+            { x: 295, y: 315, w: 210, h: 12 },
+            // Mid side catwalks
+            { x: 55, y: 235, w: 185, h: 12 },
+            { x: 560, y: 235, w: 185, h: 12 },
+            // High center forge deck
+            { x: 310, y: 150, w: 180, h: 12 }
+          ],
+          jumpPads: [
+            { x: 382, y: 398, w: 36, h: 10 }
+          ],
+          spawns: [
+            { x: 105, y: 368, facing: 1 },
+            { x: 695, y: 368, facing: -1 }
+          ],
+          powerupSpots: [
+            { x: 400, y: 120 },
+            { x: 145, y: 205 },
+            { x: 655, y: 205 },
+            { x: 400, y: 285 }
+          ]
+        },
+        {
+          name: 'ZERO-G LAB',
+          skyTop: '#061419',
+          skyBottom: '#0d2b36',
+          accent: '#2ce8a2',
+          trim: '#00f3ff',
+          theme: 'lab',
+          solids: [
+            { x: 0, y: 408, w: 800, h: 42 },
+            // Elevated center monolith
+            { x: 368, y: 260, w: 64, h: 36 }
+          ],
+          platforms: [
+            { x: 90, y: 320, w: 150, h: 12 },
+            { x: 560, y: 320, w: 150, h: 12 },
+            { x: 210, y: 210, w: 125, h: 12 },
+            { x: 465, y: 210, w: 125, h: 12 },
+            { x: 325, y: 125, w: 150, h: 12 }
+          ],
+          jumpPads: [
+            { x: 25, y: 398, w: 36, h: 10 },
+            { x: 739, y: 398, w: 36, h: 10 },
+            { x: 382, y: 398, w: 36, h: 10 }
+          ],
+          spawns: [
+            { x: 145, y: 280, facing: 1 },
+            { x: 655, y: 280, facing: -1 }
+          ],
+          powerupSpots: [
+            { x: 400, y: 95 },
+            { x: 272, y: 180 },
+            { x: 528, y: 180 },
+            { x: 400, y: 230 }
+          ]
+        }
+      ];
+
+      const POWERUP_TYPES = [
+        { id: 'rapid', label: 'RAPID', color: '#ffd700', duration: 7.5 },
+        { id: 'triple', label: 'TRIPLE', color: '#ff2a85', duration: 7.0 },
+        { id: 'shield', label: 'SHIELD', color: '#2ce8a2', duration: 9.0 }
+      ];
+
+      // =========================================================================
+      // 3. APPLICATION & MATCH STATE
+      // =========================================================================
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = GAME_W;
+      canvas.height = GAME_H;
+
+      const settings = {
+        mode: '1vCPU',         // '1vCPU' | '1v1'
+        difficulty: 'Medium',  // 'Easy' | 'Medium' | 'Hard' | 'Impossible'
+        arenaChoice: 'cycle',  // 'cycle' | '0' | '1' | '2'
+        powerupsEnabled: true,
+        maxHp: 3,              // 3 HP or 1 HP (Instant KO mode)
+        scanlines: true,
+        touchMode: 'auto'      // 'auto' | 'on' | 'off'
+      };
+
+      const matchState = {
+        phase: 'MENU',         // 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'ROUND_OVER' | 'MATCH_OVER'
+        paused: false,
+        roundNumber: 1,
+        arenaIndex: 0,
+        phaseTimer: 0,
+        hitStopTimer: 0,
+        shakeTimer: 0,
+        shakeIntensity: 0,
+        bannerMain: '',
+        bannerSub: '',
+        bannerColor: '#00f3ff',
+        powerupSpawnTimer: 5.5,
+        stats: {
+          p1: { wins: 0, shots: 0, hits: 0 },
+          p2: { wins: 0, shots: 0, hits: 0 }
+        }
+      };
+
+      // Input state for P1 and P2
+      const inputs = {
+        p1: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false },
+        p2: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false }
+      };
+
+      const keysDown = new Set();
+
+      // Entities
+      let players = [];
+      let lasers = [];
+      let particles = [];
+      let floatingTexts = [];
+      let activePowerup = null;
+      let bgStars = [];
+
+      // Initialize parallax pixel stars
+      for (let i = 0; i < 65; i++) {
+        bgStars.push({
+          x: Math.random() * GAME_W,
+          y: Math.random() * (GAME_H - 60),
+          size: Math.random() < 0.7 ? 2 : 3,
+          speed: 4 + Math.random() * 14,
+          alpha: 0.3 + Math.random() * 0.7
+        });
+      }
+
+      function currentArena() {
+        return ARENAS[matchState.arenaIndex % ARENAS.length];
+      }
+
+      // =========================================================================
+      // 4. PLAYER CREATION & ROUND LIFECYCLE
+      // =========================================================================
+      function createPlayer(id, spawnX, spawnY, facing, isCPU = false) {
+        return {
+          id, // 1 or 2
+          name: id === 1 ? 'P1' : (isCPU ? `CPU (${settings.difficulty.toUpperCase()})` : 'P2'),
+          isCPU,
+          x: spawnX - 12,
+          y: spawnY,
+          w: 24,
+          h: 36,
+          vx: 0,
+          vy: 0,
+          facing, // 1 right, -1 left
+          onGround: false,
+          coyoteTimer: 0,
+          jumpBufferTimer: 0,
+          dropThroughTimer: 0,
+          hp: settings.maxHp,
+          maxHp: settings.maxHp,
+          cooldown: 0,
+          recoilTimer: 0,
+          muzzleTimer: 0,
+          hurtTimer: 0,
+          animTimer: 0,
+          jetpackTimer: 0,
+          alive: true,
+          // Powerups
+          rapidTimer: 0,
+          tripleTimer: 0,
+          hasShield: false,
+          // AI internal state
+          ai: {
+            thinkTimer: 0,
+            moveDir: 0,
+            wantJump: false,
+            holdJumpTimer: 0,
+            wantDrop: false,
+            wantShoot: false,
+            targetY: spawnY,
+            strafeTimer: 0,
+            stuckTimer: 0,
+            lastX: spawnX - 12,
+            vaultDir: 0,
+            vaultTimer: 0,
+            navGoal: null // { nextNode, takeoffX, landX, jumping, hopTimer }
+          }
+        };
+      }
+
+      // =========================================================================
+      // 4B. ARENA MULTI-TIER PLATFORM GRAPH & BFS PATHFINDING
+      // =========================================================================
+      function buildArenaNavGraph(arena) {
+        const nodes = [];
+
+        // 1. Add walkable surfaces from solids (floor + flat tops of solid blocks)
+        arena.solids.forEach((s, idx) => {
+          nodes.push({
+            id: `solid_${idx}`,
+            type: 'solid',
+            x1: s.x,
+            x2: s.x + s.w,
+            y: s.y,
+            cx: s.x + s.w * 0.5
+          });
+        });
+
+        // 2. Add one-way platforms
+        arena.platforms.forEach((p, idx) => {
+          nodes.push({
+            id: `plat_${idx}`,
+            type: 'platform',
+            x1: p.x,
+            x2: p.x + p.w,
+            y: p.y,
+            cx: p.x + p.w * 0.5
+          });
+        });
+
+        // 3. Add jump pads as special launch nodes
+        arena.jumpPads.forEach((pad, idx) => {
+          nodes.push({
+            id: `pad_${idx}`,
+            type: 'jumppad',
+            x1: pad.x,
+            x2: pad.x + pad.w,
+            y: pad.y,
+            cx: pad.x + pad.w * 0.5
+          });
+        });
+
+        // Compute physics jump reach limits
+        const normalMaxRise = (JUMP_VELOCITY * JUMP_VELOCITY) / (2 * GRAVITY); // ~95.8px
+        const padMaxRise = (JUMP_PAD_VELOCITY * JUMP_PAD_VELOCITY) / (2 * GRAVITY); // ~205px
+        const normalAirTime = (2 * Math.abs(JUMP_VELOCITY)) / GRAVITY; // ~0.71s
+        const padAirTime = (2 * Math.abs(JUMP_PAD_VELOCITY)) / GRAVITY; // ~1.04s
+
+        // Build directed edges between surfaces
+        for (const from of nodes) {
+          from.edges = [];
+          for (const to of nodes) {
+            if (from.id === to.id) continue;
+
+            // Horizontal gap between intervals [from.x1, from.x2] and [to.x1, to.x2]
+            const gap = Math.max(0, Math.max(to.x1 - from.x2, from.x1 - to.x2));
+            const heightGain = from.y - to.y; // positive if `to` is higher than `from`
+
+            if (from.type === 'jumppad') {
+              // Jump pad launches high into the air
+              if (heightGain <= padMaxRise - 12 && gap <= MOVE_SPEED * padAirTime * 0.85) {
+                const takeoffX = from.cx;
+                const landX = Math.max(to.x1 + 16, Math.min(to.x2 - 16, takeoffX));
+                from.edges.push({
+                  to,
+                  viaPad: true,
+                  takeoffX,
+                  landX,
+                  cost: 0.7 + gap / 250
+                });
+              }
+            } else if (heightGain > 6) {
+              // Jumping upward from `from` to `to`
+              // Require comfortable margin under apex so CPU clears top cleanly
+              if (heightGain <= normalMaxRise - 8) {
+                const maxReachX = MOVE_SPEED * normalAirTime * 0.72;
+                if (gap <= maxReachX) {
+                  // Compute optimal takeoffX on `from` and landingX on `to`
+                  let takeoffX, landX;
+                  const overlapStart = Math.max(from.x1 + 14, to.x1 + 14);
+                  const overlapEnd = Math.min(from.x2 - 14, to.x2 - 14);
+
+                  if (overlapStart <= overlapEnd && to.type === 'platform') {
+                    // Directly beneath one-way platform: step slightly outside edge so we don't bonk or simply jump straight up through one-way platform
+                    takeoffX = (overlapStart + overlapEnd) * 0.5;
+                    landX = takeoffX;
+                  } else if (to.cx < from.cx) {
+                    // Target platform is to the left
+                    takeoffX = Math.max(from.x1 + 14, Math.min(from.x2 - 14, to.x2 + 12));
+                    landX = Math.max(to.x1 + 16, to.x2 - 22);
+                  } else {
+                    // Target platform is to the right
+                    takeoffX = Math.min(from.x2 - 14, Math.max(from.x1 + 14, to.x1 - 12));
+                    landX = Math.min(to.x2 - 16, to.x1 + 22);
+                  }
+
+                  from.edges.push({
+                    to,
+                    viaPad: false,
+                    takeoffX,
+                    landX,
+                    cost: 1.0 + heightGain / 90 + gap / 220
+                  });
+                }
+              }
+            } else {
+              // Dropping down or hopping across at same/lower height
+              const dropDist = -heightGain;
+              const fallTime = Math.sqrt((2 * Math.max(20, dropDist + 40)) / GRAVITY) + 0.35;
+              if (gap <= MOVE_SPEED * fallTime * 0.85) {
+                const takeoffX = Math.max(from.x1 + 14, Math.min(from.x2 - 14, to.cx));
+                const landX = Math.max(to.x1 + 16, Math.min(to.x2 - 16, takeoffX));
+                from.edges.push({
+                  to,
+                  viaPad: false,
+                  isDrop: heightGain < -28,
+                  takeoffX,
+                  landX,
+                  cost: 0.8 + gap / 250
+                });
+              }
+            }
+          }
+        }
+
+        arena.navNodes = nodes;
+      }
+
+      function findSupportingNode(arena, entityCx, entityBottom) {
+        if (!arena.navNodes) buildArenaNavGraph(arena);
+        let best = null;
+        let bestScore = Infinity;
+
+        for (const node of arena.navNodes) {
+          if (node.type === 'jumppad') continue;
+          const withinX = entityCx >= node.x1 - 12 && entityCx <= node.x2 + 12;
+          const dy = Math.abs(entityBottom - node.y);
+          if (withinX && dy <= 24) {
+            if (dy < bestScore) {
+              bestScore = dy;
+              best = node;
+            }
+          }
+        }
+
+        // Fallback: closest node below the entity
+        if (!best) {
+          for (const node of arena.navNodes) {
+            if (node.type === 'jumppad') continue;
+            if (node.y >= entityBottom - 16) {
+              const dx = entityCx < node.x1 ? node.x1 - entityCx : (entityCx > node.x2 ? entityCx - node.x2 : 0);
+              const score = (node.y - entityBottom) + dx * 1.5;
+              if (score < bestScore) {
+                bestScore = score;
+                best = node;
+              }
+            }
+          }
+        }
+        return best || arena.navNodes[0];
+      }
+
+      function findShortestPlatformHop(arena, startNode, goalNode) {
+        if (!startNode || !goalNode || startNode.id === goalNode.id) return null;
+
+        const dist = new Map();
+        const prevEdge = new Map();
+        const visited = new Set();
+
+        for (const n of arena.navNodes) dist.set(n.id, Infinity);
+        dist.set(startNode.id, 0);
+
+        while (visited.size < arena.navNodes.length) {
+          let u = null;
+          let bestD = Infinity;
+          for (const n of arena.navNodes) {
+            if (!visited.has(n.id) && dist.get(n.id) < bestD) {
+              bestD = dist.get(n.id);
+              u = n;
+            }
+          }
+          if (!u || u.id === goalNode.id) break;
+          visited.add(u.id);
+
+          for (const edge of u.edges) {
+            const alt = bestD + edge.cost;
+            if (alt < dist.get(edge.to.id)) {
+              dist.set(edge.to.id, alt);
+              prevEdge.set(edge.to.id, { from: u, edge });
+            }
+          }
+        }
+
+        if (!prevEdge.has(goalNode.id)) return null;
+
+        // Reconstruct first hop edge from startNode
+        let currId = goalNode.id;
+        let firstStep = null;
+        while (prevEdge.has(currId)) {
+          const step = prevEdge.get(currId);
+          if (step.from.id === startNode.id) {
+            firstStep = step.edge;
+            break;
+          }
+          currId = step.from.id;
+        }
+        return firstStep;
+      }
+
+      function resetRound() {
+        const arena = currentArena();
+        buildArenaNavGraph(arena);
+        lasers = [];
+        particles = [];
+        floatingTexts = [];
+        activePowerup = null;
+        matchState.powerupSpawnTimer = 4.5;
+
+        players = [
+          createPlayer(1, arena.spawns[0].x, arena.spawns[0].y, arena.spawns[0].facing, false),
+          createPlayer(2, arena.spawns[1].x, arena.spawns[1].y, arena.spawns[1].facing, settings.mode === '1vCPU')
+        ];
+
+        // Clear any residual inputs
+        ['p1', 'p2'].forEach(k => {
+          inputs[k].left = false;
+          inputs[k].right = false;
+          inputs[k].jump = false;
+          inputs[k].down = false;
+          inputs[k].shoot = false;
+          inputs[k].jumpPressed = false;
+          inputs[k].shootPressed = false;
+        });
+        syncKeyboardInputs();
+
+        matchState.phase = 'COUNTDOWN';
+        matchState.phaseTimer = 1.65;
+        matchState.bannerMain = `ROUND ${matchState.roundNumber}`;
+        matchState.bannerSub = `${arena.name} • READY!`;
+        matchState.bannerColor = '#00f3ff';
+        audio.countdown(false);
+      }
+
+      function startNewMatch() {
+        matchState.roundNumber = 1;
+        matchState.paused = false;
+        matchState.hitStopTimer = 0;
+        matchState.shakeTimer = 0;
+        matchState.stats = {
+          p1: { wins: 0, shots: 0, hits: 0 },
+          p2: { wins: 0, shots: 0, hits: 0 }
+        };
+
+        if (settings.arenaChoice === 'cycle') {
+          matchState.arenaIndex = 0;
+        } else {
+          matchState.arenaIndex = parseInt(settings.arenaChoice, 10) || 0;
+        }
+
+        hideAllOverlays();
+        resetRound();
+        updateTouchVisibility();
+      }
+
+      // =========================================================================
+      // 5. SMART AI BRAIN (EASY, MEDIUM, HARD, IMPOSSIBLE)
+      // =========================================================================
+      function updateCPU(cpu, opponent, dt) {
+        if (!cpu.alive || !opponent.alive) return;
+
+        const diff = settings.difficulty;
+        const params = {
+          Easy:       { react: 0.30, aimTolerance: 44, shootChance: 0.44, dodgeSkill: 0.18, leadShot: 0.0, aggroDist: 280, lookahead: 46, vaultChance: 0.85, jumpHold: 0.34, climbChance: 0.72 },
+          Medium:     { react: 0.16, aimTolerance: 25, shootChance: 0.70, dodgeSkill: 0.50, leadShot: 0.35, aggroDist: 235, lookahead: 66, vaultChance: 0.96, jumpHold: 0.38, climbChance: 0.92 },
+          Hard:       { react: 0.08, aimTolerance: 15, shootChance: 0.90, dodgeSkill: 0.85, leadShot: 0.78, aggroDist: 205, lookahead: 82, vaultChance: 1.00, jumpHold: 0.41, climbChance: 1.00 },
+          Impossible: { react: 0.03, aimTolerance: 8,  shootChance: 0.99, dodgeSkill: 0.98, leadShot: 1.0,  aggroDist: 180, lookahead: 96, vaultChance: 1.00, jumpHold: 0.43, climbChance: 1.00 }
+        }[diff];
+
+        const arena = currentArena();
+        if (!arena.navNodes) buildArenaNavGraph(arena);
+
+        cpu.ai.thinkTimer -= dt;
+        cpu.ai.strafeTimer -= dt;
+        cpu.ai.holdJumpTimer = Math.max(0, cpu.ai.holdJumpTimer - dt);
+        cpu.ai.vaultTimer = Math.max(0, cpu.ai.vaultTimer - dt);
+
+        const cpuCx = cpu.x + cpu.w * 0.5;
+        const cpuCy = cpu.y + cpu.h * 0.5;
+        const cpuBottom = cpu.y + cpu.h;
+        const oppCx = opponent.x + opponent.w * 0.5;
+        const oppCy = opponent.y + opponent.h * 0.5;
+        const oppBottom = opponent.y + opponent.h;
+
+        const dxToOpp = oppCx - cpuCx;
+        const dyToOpp = oppCy - cpuCy;
+
+        // 1. Incoming Laser Threat Detection
+        let incomingThreat = null;
+        for (const l of lasers) {
+          if (l.ownerId === cpu.id) continue;
+          const distX = cpuCx - l.x;
+          const approaching = (l.vx > 0 && distX > -10 && distX < 265) || (l.vx < 0 && distX < 10 && distX > -265);
+          if (approaching && Math.abs(l.y - cpuCy) < 34) {
+            incomingThreat = l;
+            break;
+          }
+        }
+
+        if (incomingThreat && Math.random() < params.dodgeSkill) {
+          if (cpu.onGround) {
+            cpu.ai.wantJump = true;
+            cpu.ai.holdJumpTimer = params.jumpHold;
+          } else if (cpu.y < 320 && !cpu.ai.navGoal) {
+            cpu.ai.wantDrop = true;
+          }
+        }
+
+        // 2. Strategic Decision Tick (Multi-Tier Platform Graph Routing, Aiming & Firing)
+        if (cpu.ai.thinkTimer <= 0) {
+          cpu.ai.thinkTimer = params.react * (0.8 + Math.random() * 0.4);
+          cpu.ai.wantShoot = false;
+
+          let goalX = oppCx;
+          let goalY = oppCy;
+          let goalBottom = oppBottom;
+
+          if (activePowerup && (diff === 'Hard' || diff === 'Impossible' || Math.random() < 0.6)) {
+            goalX = activePowerup.x;
+            goalY = activePowerup.y;
+            goalBottom = activePowerup.y + 12;
+          }
+
+          const cpuNode = findSupportingNode(arena, cpuCx, cpuBottom);
+          const goalNode = findSupportingNode(arena, goalX, goalBottom);
+
+          // Determine if we need to climb/navigate to another platform tier
+          const needPlatformRoute = cpuNode && goalNode && cpuNode.id !== goalNode.id &&
+            (goalNode.y < cpuNode.y - 20 || (goalNode.y > cpuNode.y + 35 && Math.abs(goalX - cpuCx) > 90));
+
+          if (needPlatformRoute && (cpu.ai.navGoal || Math.random() < params.climbChance)) {
+            const hop = findShortestPlatformHop(arena, cpuNode, goalNode);
+            if (hop) {
+              // Preserve active mid-air hop state so CPU doesn't abort or reverse mid-jump
+              if (!cpu.ai.navGoal || !cpu.ai.navGoal.jumping || cpu.onGround) {
+                cpu.ai.navGoal = {
+                  targetNode: hop.to,
+                  takeoffX: hop.takeoffX,
+                  landX: hop.landX,
+                  viaPad: !!hop.viaPad,
+                  isDrop: !!hop.isDrop,
+                  jumping: !cpu.onGround && cpu.ai.navGoal ? cpu.ai.navGoal.jumping : false,
+                  hopTimer: 0
+                };
+              }
+            } else {
+              cpu.ai.navGoal = null;
+            }
+          } else if (cpu.onGround) {
+            cpu.ai.navGoal = null;
+          }
+
+          // Compute horizontal steering when not in a committed platform hop
+          if (!cpu.ai.navGoal && cpu.ai.vaultTimer <= 0) {
+            let targetX = goalX;
+            if (!activePowerup) {
+              const absDx = Math.abs(dxToOpp);
+              if (absDx > params.aggroDist + 55) {
+                targetX = oppCx;
+              } else if (absDx < params.aggroDist - 55) {
+                targetX = cpuCx - Math.sign(dxToOpp || 1) * 95;
+              } else if (cpu.ai.strafeTimer <= 0) {
+                cpu.ai.strafeTimer = 0.45 + Math.random() * 0.6;
+                targetX = cpuCx + (Math.random() < 0.5 ? -80 : 80);
+              } else {
+                targetX = cpuCx;
+              }
+            }
+            targetX = Math.max(45, Math.min(GAME_W - 45, targetX));
+            const moveDiff = targetX - cpuCx;
+            cpu.ai.moveDir = Math.abs(moveDiff) > 14 ? Math.sign(moveDiff) : 0;
+          }
+
+          // Check if a solid cover block blocks line-of-sight between CPU and opponent
+          let blockedBySolid = false;
+          const minX = Math.min(cpuCx, oppCx);
+          const maxX = Math.max(cpuCx, oppCx);
+          for (const s of arena.solids) {
+            if (s.y >= 400) continue; // Ignore floor
+            if (s.x + s.w > minX && s.x < maxX && cpuCy > s.y - 6 && cpuCy < s.y + s.h) {
+              blockedBySolid = true;
+              break;
+            }
+          }
+
+          // Leap over blocking center pillar to gain clean line of sight
+          if (!cpu.ai.navGoal && blockedBySolid && cpu.onGround && (diff === 'Hard' || diff === 'Impossible' || Math.random() < 0.65)) {
+            cpu.ai.wantJump = true;
+            cpu.ai.holdJumpTimer = params.jumpHold;
+            const dirTowardOpp = Math.sign(dxToOpp || 1);
+            cpu.ai.moveDir = dirTowardOpp;
+            cpu.ai.vaultDir = dirTowardOpp;
+            cpu.ai.vaultTimer = 0.44;
+          }
+
+          // Predictive Aiming & Firing check
+          const travelTime = Math.abs(dxToOpp) / LASER_SPEED;
+          const predictedOppY = oppCy + opponent.vy * travelTime * params.leadShot * 0.45;
+          const verticalAlignment = Math.abs(predictedOppY - cpuCy);
+
+          if (!blockedBySolid && verticalAlignment <= params.aimTolerance && Math.random() < params.shootChance) {
+            cpu.facing = dxToOpp >= 0 ? 1 : -1;
+            cpu.ai.wantShoot = true;
+          }
+        }
+
+        // 2B. Execute Persistent Multi-Tier Platform Hop (`navGoal`)
+        if (cpu.ai.navGoal) {
+          const hop = cpu.ai.navGoal;
+          hop.hopTimer += dt;
+
+          // Check if we successfully landed on or above the target platform
+          const onTargetPlatform = cpu.onGround &&
+            Math.abs(cpuBottom - hop.targetNode.y) <= 14 &&
+            cpuCx >= hop.targetNode.x1 - 8 &&
+            cpuCx <= hop.targetNode.x2 + 8;
+
+          if (onTargetPlatform || hop.hopTimer > 1.75) {
+            cpu.ai.navGoal = null;
+          } else if (hop.isDrop) {
+            // Dropping down to a lower platform
+            const steerX = hop.landX - cpuCx;
+            cpu.ai.moveDir = Math.abs(steerX) > 10 ? Math.sign(steerX) : 0;
+            if (cpu.onGround && cpu.y < 350) {
+              cpu.ai.wantDrop = true;
+            }
+          } else if (!hop.jumping) {
+            // Phase A: Walk to the optimal takeoff X on the current platform
+            const distToTakeoff = hop.takeoffX - cpuCx;
+            if (Math.abs(distToTakeoff) > 14) {
+              cpu.ai.moveDir = Math.sign(distToTakeoff);
+            } else if (cpu.onGround) {
+              // At takeoff point: launch full held jump toward target platform!
+              hop.jumping = true;
+              hop.hopTimer = 0;
+              if (!hop.viaPad) {
+                cpu.ai.wantJump = true;
+                cpu.ai.holdJumpTimer = params.jumpHold;
+              }
+              const airDiff = hop.landX - cpuCx;
+              cpu.ai.moveDir = Math.abs(airDiff) > 6 ? Math.sign(airDiff) : 0;
+            }
+          } else {
+            // Phase B: Airborne toward target platform — keep holding jump until feet clear target Y, and steer onto landX!
+            if (cpuBottom > hop.targetNode.y - 6 && cpu.vy < 140) {
+              cpu.ai.holdJumpTimer = Math.max(cpu.ai.holdJumpTimer, 0.08);
+            }
+            const airDiff = hop.landX - cpuCx;
+            if (Math.abs(airDiff) > 8) {
+              cpu.ai.moveDir = Math.sign(airDiff);
+            } else {
+              cpu.ai.moveDir = 0;
+            }
+            if (cpu.onGround && hop.hopTimer > 0.25) {
+              // Landed early (e.g. clipped edge or ground), allow replanning
+              cpu.ai.navGoal = null;
+            }
+          }
+        }
+
+        // 3. Frame-Level Proactive Obstacle Lookahead & Stuck Auto-Vault
+        const activeDir = cpu.ai.vaultTimer > 0 ? cpu.ai.vaultDir : cpu.ai.moveDir;
+
+        // Stuck detection: if trying to move horizontally on ground and barely displaced
+        if (activeDir !== 0 && cpu.onGround) {
+          if (Math.abs(cpu.x - cpu.ai.lastX) < 0.65) {
+            cpu.ai.stuckTimer += dt;
+          } else {
+            cpu.ai.stuckTimer = 0;
+          }
+        } else {
+          cpu.ai.stuckTimer = 0;
+        }
+        cpu.ai.lastX = cpu.x;
+
+        if (activeDir !== 0) {
+          const speedRatio = Math.max(0.55, Math.abs(cpu.vx) / MOVE_SPEED);
+          const lookDist = Math.max(28, params.lookahead * speedRatio);
+          const frontEdge = activeDir > 0 ? cpu.x + cpu.w : cpu.x;
+
+          let obstacleAhead = false;
+          for (const s of arena.solids) {
+            if (s.y >= 400) continue; // Ignore main floor
+            const horizontalDist = activeDir > 0 ? (s.x - frontEdge) : (frontEdge - (s.x + s.w));
+            const inFront = horizontalDist >= -10 && horizontalDist <= lookDist;
+            const blocksHeight = cpuBottom > s.y + 3 && cpu.y < s.y + s.h;
+            if (inFront && blocksHeight) {
+              obstacleAhead = true;
+              break;
+            }
+          }
+
+          // Trigger early proactive jump before hitting block, or immediate auto-vault if stuck
+          const isStuck = cpu.ai.stuckTimer >= (diff === 'Easy' ? 0.14 : 0.06);
+          if ((obstacleAhead || isStuck) && cpu.onGround) {
+            if (isStuck || Math.random() < params.vaultChance) {
+              cpu.ai.wantJump = true;
+              cpu.ai.holdJumpTimer = params.jumpHold;
+              cpu.ai.vaultDir = activeDir;
+              cpu.ai.vaultTimer = 0.45;
+              cpu.ai.stuckTimer = 0;
+            }
+          }
+
+          // While airborne during a vault, keep holding jump until feet cleanly clear the block's top surface
+          if (!cpu.onGround && cpu.ai.vaultTimer > 0) {
+            for (const s of arena.solids) {
+              if (s.y >= 400) continue;
+              const nearBlockX = Math.abs((s.x + s.w * 0.5) - cpuCx) < (s.w * 0.5 + 42);
+              if (nearBlockX && cpuBottom > s.y - 4) {
+                cpu.ai.holdJumpTimer = Math.max(cpu.ai.holdJumpTimer, 0.10);
+              }
+            }
+          }
+        }
+
+        // Apply AI decisions to virtual P2 controller
+        const finalMoveDir = cpu.ai.vaultTimer > 0 ? cpu.ai.vaultDir : cpu.ai.moveDir;
+        const holdingJump = cpu.ai.wantJump || cpu.ai.holdJumpTimer > 0;
+
+        const ctrl = inputs.p2;
+        ctrl.left = finalMoveDir < 0;
+        ctrl.right = finalMoveDir > 0;
+        ctrl.down = cpu.ai.wantDrop;
+        ctrl.jump = holdingJump;
+        ctrl.jumpPressed = cpu.ai.wantJump;
+        ctrl.shoot = cpu.ai.wantShoot;
+        ctrl.shootPressed = cpu.ai.wantShoot;
+
+        // Face opponent when aligned to shoot and not mid-vault/mid-hop
+        if (Math.abs(dyToOpp) < 45 && !incomingThreat && cpu.ai.vaultTimer <= 0.12 && !cpu.ai.navGoal) {
+          cpu.facing = dxToOpp >= 0 ? 1 : -1;
+        }
+
+        cpu.ai.wantJump = false;
+        cpu.ai.wantDrop = false;
+      }
+
+      // =========================================================================
+      // 6. PHYSICS, COLLISIONS & COMBAT
+      // =========================================================================
+      function rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function spawnParticles(x, y, color, count = 12, speed = 180) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const spd = (0.25 + Math.random() * 0.75) * speed;
+          particles.push({
+            x,
+            y,
+            vx: Math.cos(angle) * spd,
+            vy: Math.sin(angle) * spd - 30,
+            size: Math.random() < 0.5 ? 2 : 3,
+            color,
+            life: 0.25 + Math.random() * 0.32,
+            maxLife: 0.57
+          });
+        }
+      }
+
+      function spawnFloatingText(x, y, text, color = '#ffffff') {
+        floatingTexts.push({
+          x,
+          y,
+          text,
+          color,
+          life: 0.85
+        });
+      }
+
+      function triggerShake(intensity = 5, duration = 0.16) {
+        matchState.shakeIntensity = Math.max(matchState.shakeIntensity, intensity);
+        matchState.shakeTimer = Math.max(matchState.shakeTimer, duration);
+      }
+
+      function fireLaser(player) {
+        if (!player.alive || player.cooldown > 0) return;
+
+        const isRapid = player.rapidTimer > 0;
+        const isTriple = player.tripleTimer > 0;
+
+        player.cooldown = isRapid ? BASE_COOLDOWN * 0.48 : BASE_COOLDOWN;
+        player.recoilTimer = 0.10;
+        player.muzzleTimer = 0.06;
+
+        // Slight horizontal recoil kick
+        player.vx -= player.facing * 42;
+
+        const muzzleX = player.facing === 1 ? player.x + player.w + 4 : player.x - 14;
+        const muzzleY = player.y + 15;
+        const color = player.id === 1 ? '#00f3ff' : '#ff2a85';
+        const coreColor = '#ffffff';
+
+        const angles = isTriple ? [-0.11, 0, 0.11] : [0];
+        angles.forEach(ang => {
+          lasers.push({
+            ownerId: player.id,
+            x: muzzleX,
+            y: muzzleY,
+            w: 14,
+            h: 4,
+            vx: Math.cos(ang) * LASER_SPEED * player.facing,
+            vy: Math.sin(ang) * LASER_SPEED,
+            color,
+            coreColor,
+            trail: []
+          });
+        });
+
+        if (player.id === 1) matchState.stats.p1.shots += angles.length;
+        else matchState.stats.p2.shots += angles.length;
+
+        spawnParticles(muzzleX + (player.facing === 1 ? 4 : 8), muzzleY + 2, color, 5, 95);
+        audio.laser(isRapid ? 1.22 : 1.0);
+      }
+
+      function updatePlayer(player, ctrl, dt) {
+        if (!player.alive) return;
+
+        const arena = currentArena();
+
+        // Update timers
+        player.cooldown = Math.max(0, player.cooldown - dt);
+        player.recoilTimer = Math.max(0, player.recoilTimer - dt);
+        player.muzzleTimer = Math.max(0, player.muzzleTimer - dt);
+        player.hurtTimer = Math.max(0, player.hurtTimer - dt);
+        player.dropThroughTimer = Math.max(0, player.dropThroughTimer - dt);
+        player.rapidTimer = Math.max(0, player.rapidTimer - dt);
+        player.tripleTimer = Math.max(0, player.tripleTimer - dt);
+        player.jetpackTimer = Math.max(0, player.jetpackTimer - dt);
+
+        if (player.onGround) {
+          player.coyoteTimer = 0.09;
+        } else {
+          player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
+        }
+
+        if (ctrl.jumpPressed) {
+          player.jumpBufferTimer = 0.10;
+        } else {
+          player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
+        }
+
+        // Drop through one-way platforms
+        if (ctrl.down && player.onGround) {
+          player.dropThroughTimer = 0.18;
+          player.onGround = false;
+          player.y += 2;
+        }
+
+        // Horizontal acceleration & crisp deceleration
+        let targetVx = 0;
+        if (ctrl.left) {
+          targetVx -= MOVE_SPEED;
+          player.facing = -1;
+        }
+        if (ctrl.right) {
+          targetVx += MOVE_SPEED;
+          player.facing = 1;
+        }
+
+        const accel = player.onGround ? 2400 : 1850;
+        if (player.vx < targetVx) {
+          player.vx = Math.min(targetVx, player.vx + accel * dt);
+        } else if (player.vx > targetVx) {
+          player.vx = Math.max(targetVx, player.vx - accel * dt);
+        }
+
+        // Jump execution (with coyote time & jump buffer)
+        if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
+          player.vy = JUMP_VELOCITY;
+          player.onGround = false;
+          player.coyoteTimer = 0;
+          player.jumpBufferTimer = 0;
+          player.jetpackTimer = 0.22;
+          const sparkColor = player.id === 1 ? '#00f3ff' : '#ff2a85';
+          spawnParticles(player.x + player.w * 0.5, player.y + player.h, sparkColor, 8, 95);
+          audio.jump();
+        }
+
+        // Jetpack booster trail sparks while ascending
+        if (!player.onGround && player.vy < -120 && Math.random() < 0.45) {
+          const jetX = player.facing === 1 ? player.x + 3 : player.x + player.w - 5;
+          particles.push({
+            x: jetX,
+            y: player.y + 22,
+            vx: (Math.random() - 0.5) * 35,
+            vy: 90 + Math.random() * 60,
+            size: 2,
+            color: player.id === 1 ? '#00f3ff' : '#ffd700',
+            life: 0.16,
+            maxLife: 0.16
+          });
+        }
+
+        // Variable jump height (release jump early to hop lower)
+        if (!ctrl.jump && player.vy < -180) {
+          player.vy += GRAVITY * 1.45 * dt;
+        }
+
+        // Apply Gravity
+        player.vy = Math.min(920, player.vy + GRAVITY * dt);
+
+        // Move X & resolve solid wall collisions
+        player.x += player.vx * dt;
+        if (player.x < 8) {
+          player.x = 8;
+          player.vx = 0;
+        } else if (player.x + player.w > GAME_W - 8) {
+          player.x = GAME_W - 8 - player.w;
+          player.vx = 0;
+        }
+
+        for (const s of arena.solids) {
+          if (rectsOverlap(player, s)) {
+            if (player.vx > 0) {
+              player.x = s.x - player.w;
+              player.vx = 0;
+            } else if (player.vx < 0) {
+              player.x = s.x + s.w;
+              player.vx = 0;
+            }
+          }
+        }
+
+        // Move Y & resolve solid + one-way platform collisions
+        const prevBottom = player.y + player.h;
+        player.y += player.vy * dt;
+        player.onGround = false;
+
+        for (const s of arena.solids) {
+          if (rectsOverlap(player, s)) {
+            if (player.vy > 0) {
+              player.y = s.y - player.h;
+              player.vy = 0;
+              player.onGround = true;
+            } else if (player.vy < 0) {
+              player.y = s.y + s.h;
+              player.vy = 0;
+            }
+          }
+        }
+
+        // One-way platforms (only land from above when falling and not dropping through)
+        if (player.vy >= 0 && player.dropThroughTimer <= 0) {
+          for (const p of arena.platforms) {
+            const withinX = player.x + player.w > p.x + 2 && player.x < p.x + p.w - 2;
+            const crossedTop = prevBottom <= p.y + 6 && player.y + player.h >= p.y;
+            if (withinX && crossedTop) {
+              player.y = p.y - player.h;
+              player.vy = 0;
+              player.onGround = true;
+            }
+          }
+        }
+
+        // Check Jump Pads
+        for (const pad of arena.jumpPads) {
+          if (rectsOverlap(player, pad) && player.vy >= 0) {
+            player.vy = JUMP_PAD_VELOCITY;
+            player.onGround = false;
+            player.jetpackTimer = 0.35;
+            spawnParticles(pad.x + pad.w * 0.5, pad.y, '#2ce8a2', 12, 160);
+            audio.jumpPad();
+          }
+        }
+
+        // Check Powerup Pickup
+        if (activePowerup) {
+          const puRect = { x: activePowerup.x - 12, y: activePowerup.y - 12, w: 24, h: 24 };
+          if (rectsOverlap(player, puRect)) {
+            applyPowerup(player, activePowerup.type);
+            activePowerup = null;
+          }
+        }
+
+        // Shoot weapon
+        if (ctrl.shoot || ctrl.shootPressed) {
+          fireLaser(player);
+        }
+
+        // Advance walk animation timer
+        if (Math.abs(player.vx) > 20 && player.onGround) {
+          player.animTimer += dt * 12;
+        } else {
+          player.animTimer += dt * 3;
+        }
+      }
+
+      function applyPowerup(player, type) {
+        audio.powerup();
+        spawnParticles(player.x + player.w * 0.5, player.y + player.h * 0.5, type.color, 18, 170);
+        spawnFloatingText(player.x + player.w * 0.5, player.y - 10, `${type.label}!`, type.color);
+
+        if (type.id === 'rapid') {
+          player.rapidTimer = type.duration;
+        } else if (type.id === 'triple') {
+          player.tripleTimer = type.duration;
+        } else if (type.id === 'shield') {
+          player.hasShield = true;
+        }
+      }
+
+      function handleLaserHit(laser, target) {
+        const attacker = players.find(p => p.id === laser.ownerId);
+        if (attacker) {
+          if (attacker.id === 1) matchState.stats.p1.hits++;
+          else matchState.stats.p2.hits++;
+        }
+
+        // Check Energy Shield first
+        if (target.hasShield) {
+          target.hasShield = false;
+          target.hurtTimer = 0.25;
+          target.vx += Math.sign(laser.vx) * 140;
+          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#2ce8a2', 18, 200);
+          spawnFloatingText(target.x + target.w * 0.5, target.y - 12, 'BLOCKED!', '#2ce8a2');
+          triggerShake(4, 0.12);
+          audio.shieldBlock();
+          return;
+        }
+
+        target.hp = Math.max(0, target.hp - 1);
+        target.hurtTimer = 0.35;
+        target.vx += Math.sign(laser.vx) * 175;
+        target.vy = -140;
+
+        const targetColor = target.id === 1 ? '#00f3ff' : '#ff2a85';
+        spawnParticles(laser.x, laser.y, targetColor, 16, 210);
+        spawnFloatingText(target.x + target.w * 0.5, target.y - 10, '-1 HP', '#ffd700');
+
+        if (target.hp <= 0) {
+          // Round KO!
+          target.alive = false;
+          matchState.hitStopTimer = 0.13; // Dramatic freeze-frame on lethal laser
+          triggerShake(11, 0.35);
+          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, targetColor, 42, 290);
+          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#ffffff', 20, 220);
+          audio.ko();
+
+          const winner = players.find(p => p.id !== target.id);
+          onRoundWon(winner);
+        } else {
+          triggerShake(5, 0.15);
+          audio.hit();
+        }
+      }
+
+      function onRoundWon(winner) {
+        if (winner.id === 1) matchState.stats.p1.wins++;
+        else matchState.stats.p2.wins++;
+
+        const p1Wins = matchState.stats.p1.wins;
+        const p2Wins = matchState.stats.p2.wins;
+
+        if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) {
+          matchState.phase = 'MATCH_OVER';
+          matchState.phaseTimer = 1.3;
+          matchState.bannerMain = `${winner.name} VICTORY!`;
+          matchState.bannerSub = `FINAL SCORE ${p1Wins} - ${p2Wins}`;
+          matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
+          audio.matchWin();
+        } else {
+          matchState.phase = 'ROUND_OVER';
+          matchState.phaseTimer = 2.1;
+          matchState.bannerMain = `${winner.name} WINS ROUND!`;
+          matchState.bannerSub = `SCORE: ${p1Wins} - ${p2Wins} (FIRST TO ${WINS_NEEDED})`;
+          matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
+          audio.roundWin();
+        }
+      }
+
+      function updateLasers(dt) {
+        const arena = currentArena();
+
+        for (let i = lasers.length - 1; i >= 0; i--) {
+          const l = lasers[i];
+          l.trail.push({ x: l.x, y: l.y });
+          if (l.trail.length > 5) l.trail.shift();
+
+          l.x += l.vx * dt;
+          l.y += l.vy * dt;
+
+          // Out of bounds
+          if (l.x < -20 || l.x > GAME_W + 20 || l.y < -20 || l.y > GAME_H + 20) {
+            lasers.splice(i, 1);
+            continue;
+          }
+
+          // Hit solid walls/pillars
+          let hitWall = false;
+          for (const s of arena.solids) {
+            if (rectsOverlap(l, s)) {
+              hitWall = true;
+              break;
+            }
+          }
+          if (hitWall) {
+            spawnParticles(l.x + (l.vx > 0 ? l.w : 0), l.y + 2, l.color, 7, 120);
+            lasers.splice(i, 1);
+            continue;
+          }
+
+          // Hit opposing player
+          let hitPlayer = false;
+          for (const p of players) {
+            if (p.id !== l.ownerId && p.alive && rectsOverlap(l, p)) {
+              handleLaserHit(l, p);
+              hitPlayer = true;
+              break;
+            }
+          }
+          if (hitPlayer) {
+            lasers.splice(i, 1);
+          }
+        }
+      }
+
+      function updateParticlesAndPowerups(dt) {
+        // Stars
+        for (const st of bgStars) {
+          st.x -= st.speed * dt;
+          if (st.x < 0) st.x += GAME_W;
+        }
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const pt = particles[i];
+          pt.x += pt.vx * dt;
+          pt.y += pt.vy * dt;
+          pt.vy += 320 * dt;
+          pt.life -= dt;
+          if (pt.life <= 0) particles.splice(i, 1);
+        }
+
+        // Floating text
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+          const ft = floatingTexts[i];
+          ft.y -= 28 * dt;
+          ft.life -= dt;
+          if (ft.life <= 0) floatingTexts.splice(i, 1);
+        }
+
+        // Powerups
+        if (settings.powerupsEnabled && matchState.phase === 'PLAYING') {
+          if (!activePowerup) {
+            matchState.powerupSpawnTimer -= dt;
+            if (matchState.powerupSpawnTimer <= 0) {
+              const arena = currentArena();
+              const spot = arena.powerupSpots[Math.floor(Math.random() * arena.powerupSpots.length)];
+              const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+              activePowerup = {
+                x: spot.x,
+                y: spot.y,
+                type,
+                bobTimer: 0
+              };
+              spawnParticles(spot.x, spot.y, type.color, 12, 110);
+            }
+          } else {
+            activePowerup.bobTimer += dt * 4;
+          }
+        }
+      }
+
+      // =========================================================================
+      // 7. MAIN SIMULATION TICK
+      // =========================================================================
+      function update(dt) {
+        if (matchState.paused || matchState.phase === 'MENU') return;
+
+        // Screen shake decay
+        if (matchState.shakeTimer > 0) {
+          matchState.shakeTimer = Math.max(0, matchState.shakeTimer - dt);
+        }
+
+        // Hit-stop dramatic freeze frame on KO
+        if (matchState.hitStopTimer > 0) {
+          matchState.hitStopTimer -= dt;
+          updateParticlesAndPowerups(dt * 0.25);
+          return;
+        }
+
+        if (matchState.phase === 'COUNTDOWN') {
+          const prevSec = Math.ceil(matchState.phaseTimer);
+          matchState.phaseTimer -= dt;
+          const curSec = Math.ceil(matchState.phaseTimer);
+
+          if (matchState.phaseTimer <= 0.45 && matchState.bannerMain !== 'FIGHT!') {
+            matchState.bannerMain = 'FIGHT!';
+            matchState.bannerColor = '#2ce8a2';
+            audio.countdown(true);
+          } else if (curSec !== prevSec && matchState.phaseTimer > 0.45) {
+            audio.countdown(false);
+          }
+
+          updateParticlesAndPowerups(dt);
+
+          if (matchState.phaseTimer <= 0) {
+            matchState.phase = 'PLAYING';
+          }
+        } else if (matchState.phase === 'PLAYING') {
+          if (settings.mode === '1vCPU') {
+            updateCPU(players[1], players[0], dt);
+          }
+
+          updatePlayer(players[0], inputs.p1, dt);
+          updatePlayer(players[1], inputs.p2, dt);
+          updateLasers(dt);
+          updateParticlesAndPowerups(dt);
+        } else if (matchState.phase === 'ROUND_OVER') {
+          updateParticlesAndPowerups(dt);
+          matchState.phaseTimer -= dt;
+          if (matchState.phaseTimer <= 0) {
+            matchState.roundNumber++;
+            if (settings.arenaChoice === 'cycle') {
+              matchState.arenaIndex = (matchState.arenaIndex + 1) % ARENAS.length;
+            }
+            resetRound();
+          }
+        } else if (matchState.phase === 'MATCH_OVER') {
+          updateParticlesAndPowerups(dt);
+          matchState.phaseTimer -= dt;
+          if (matchState.phaseTimer <= 0) {
+            showVictoryModal();
+          }
+        }
+
+        // Clear edge-triggered input flags
+        inputs.p1.jumpPressed = false;
+        inputs.p1.shootPressed = false;
+        inputs.p2.jumpPressed = false;
+        inputs.p2.shootPressed = false;
+      }
+
+      // =========================================================================
+      // 8. PIXEL ART RENDERER
+      // =========================================================================
+      function drawBackground(arena) {
+        // Sky gradient
+        const grad = ctx.createLinearGradient(0, 0, 0, GAME_H);
+        grad.addColorStop(0, arena.skyTop);
+        grad.addColorStop(1, arena.skyBottom);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+        // Twinkling pixel stars
+        for (const st of bgStars) {
+          ctx.fillStyle = `rgba(220, 235, 255, ${st.alpha})`;
+          ctx.fillRect(Math.floor(st.x), Math.floor(st.y), st.size, st.size);
+        }
+
+        // Distant retro cyber skyline silhouettes
+        ctx.fillStyle = 'rgba(10, 14, 30, 0.65)';
+        const buildings = [
+          { x: 20, w: 65, h: 170 }, { x: 95, w: 50, h: 120 }, { x: 160, w: 80, h: 210 },
+          { x: 260, w: 55, h: 140 }, { x: 470, w: 75, h: 195 }, { x: 565, w: 50, h: 130 },
+          { x: 630, w: 85, h: 185 }, { x: 730, w: 55, h: 150 }
+        ];
+        for (const b of buildings) {
+          ctx.fillRect(b.x, 408 - b.h, b.w, b.h);
+          ctx.fillStyle = arena.accent + '33';
+          for (let wy = 408 - b.h + 14; wy < 390; wy += 18) {
+            for (let wx = b.x + 10; wx < b.x + b.w - 10; wx += 14) {
+              ctx.fillRect(wx, wy, 4, 6);
+            }
+          }
+          ctx.fillStyle = 'rgba(10, 14, 30, 0.65)';
+        }
+
+        // Subtle pixel grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 1;
+        for (let gx = 0; gx < GAME_W; gx += 32) {
+          ctx.beginPath();
+          ctx.moveTo(gx, 0);
+          ctx.lineTo(gx, GAME_H);
+          ctx.stroke();
+        }
+      }
+
+      function drawArenaGeometry(arena) {
+        // Solid Ground & Cover Pillars
+        for (const s of arena.solids) {
+          ctx.fillStyle = '#141a33';
+          ctx.fillRect(s.x, s.y, s.w, s.h);
+
+          // Top neon trim
+          ctx.fillStyle = arena.accent;
+          ctx.fillRect(s.x, s.y, s.w, 4);
+
+          // Pixel rivet / brick pattern
+          ctx.fillStyle = '#1f284d';
+          for (let px = s.x + 8; px < s.x + s.w - 8; px += 24) {
+            ctx.fillRect(px, s.y + 10, 12, 6);
+          }
+
+          // Side borders
+          ctx.strokeStyle = '#2d3b70';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(s.x + 1, s.y + 1, s.w - 2, s.h - 2);
+        }
+
+        // One-way Drop-Through Platforms
+        for (const p of arena.platforms) {
+          ctx.fillStyle = '#1b2447';
+          ctx.fillRect(p.x, p.y, p.w, p.h);
+
+          // Glowing top rail
+          ctx.fillStyle = arena.trim;
+          ctx.fillRect(p.x, p.y, p.w, 3);
+
+          // Underside tech notches
+          ctx.fillStyle = arena.accent;
+          for (let nx = p.x + 10; nx < p.x + p.w - 10; nx += 20) {
+            ctx.fillRect(nx, p.y + 6, 8, 3);
+          }
+        }
+
+        // Jump Pads
+        const pulse = Math.sin(performance.now() * 0.008) * 2;
+        for (const pad of arena.jumpPads) {
+          ctx.fillStyle = '#0f3d2e';
+          ctx.fillRect(pad.x, pad.y + 2, pad.w, pad.h - 2);
+
+          ctx.fillStyle = '#2ce8a2';
+          ctx.fillRect(pad.x + 2, pad.y - pulse * 0.5, pad.w - 4, 4);
+
+          ctx.fillStyle = 'rgba(44, 232, 162, 0.55)';
+          ctx.fillRect(pad.x + pad.w * 0.5 - 2, pad.y - 10 - pulse, 4, 4);
+        }
+      }
+
+      function drawPixelPlayer(p) {
+        if (!p.alive) return;
+
+        const isP1 = p.id === 1;
+        const primary = isP1 ? '#00f3ff' : '#ff2a85';
+        const secondary = isP1 ? '#0077b6' : '#9d0b4b';
+        const visor = isP1 ? '#ffffff' : '#ffe600';
+
+        const x = Math.round(p.x);
+        const y = Math.round(p.y);
+
+        // Energy Shield Bubble
+        if (p.hasShield) {
+          ctx.strokeStyle = '#2ce8a2';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x - 5, y - 5, p.w + 10, p.h + 8);
+          ctx.fillStyle = 'rgba(44, 232, 162, 0.14)';
+          ctx.fillRect(x - 5, y - 5, p.w + 10, p.h + 8);
+        }
+
+        // Power-up aura ring
+        if (p.rapidTimer > 0 || p.tripleTimer > 0) {
+          ctx.strokeStyle = p.tripleTimer > 0 ? '#ff2a85' : '#ffd700';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x - 2, y - 2, p.w + 4, p.h + 4);
+        }
+
+        const flash = p.hurtTimer > 0 && Math.floor(p.hurtTimer * 25) % 2 === 0;
+        const bob = p.onGround ? Math.round(Math.sin(p.animTimer * 0.5)) : 0;
+
+        // Jetpack backpack & flame thruster
+        const packX = p.facing === 1 ? x - 1 : x + p.w - 4;
+        ctx.fillStyle = flash ? '#ffffff' : '#475569';
+        ctx.fillRect(packX, y + 13 + bob, 5, 11);
+        if (!p.onGround || p.jetpackTimer > 0) {
+          ctx.fillStyle = '#ffd700';
+          ctx.fillRect(packX + 1, y + 24 + bob, 3, 5 + (Math.floor(performance.now() / 40) % 4));
+        }
+
+        // Animated legs
+        const stride = p.onGround && Math.abs(p.vx) > 20 ? Math.round(Math.sin(p.animTimer) * 4) : 0;
+        const airPose = !p.onGround ? -2 : 0;
+
+        ctx.fillStyle = flash ? '#ffffff' : secondary;
+        ctx.fillRect(x + 4 + stride, y + 25 + airPose, 6, 11 - airPose);
+        ctx.fillRect(x + 14 - stride, y + 25, 6, 11);
+
+        // Boots
+        ctx.fillStyle = flash ? '#ffffff' : '#dce6ff';
+        ctx.fillRect(x + 3 + stride, y + 33, 7, 3);
+        ctx.fillRect(x + 14 - stride, y + 33, 7, 3);
+
+        // Torso armor
+        ctx.fillStyle = flash ? '#ffffff' : primary;
+        ctx.fillRect(x + 3, y + 13 + bob, 18, 13);
+
+        // Chest core detail
+        ctx.fillStyle = flash ? '#ffffff' : '#0b0e1e';
+        ctx.fillRect(x + 8, y + 16 + bob, 8, 6);
+        ctx.fillStyle = flash ? '#ffffff' : visor;
+        ctx.fillRect(x + 10, y + 18 + bob, 4, 2);
+
+        // Helmet / Head
+        ctx.fillStyle = flash ? '#ffffff' : primary;
+        ctx.fillRect(x + 3, y + 1 + bob, 18, 12);
+
+        // Helmet crest
+        ctx.fillStyle = flash ? '#ffffff' : secondary;
+        ctx.fillRect(x + 7, y - 1 + bob, 10, 2);
+
+        // Glowing Visor facing direction
+        ctx.fillStyle = flash ? '#ffffff' : visor;
+        if (p.facing === 1) {
+          ctx.fillRect(x + 11, y + 4 + bob, 9, 4);
+        } else {
+          ctx.fillRect(x + 4, y + 4 + bob, 9, 4);
+        }
+
+        // Laser Blaster (with kickback recoil offset)
+        const recoilOffset = p.recoilTimer > 0 ? -p.facing * 3 : 0;
+        const gunY = y + 15 + bob;
+        ctx.fillStyle = '#cbd5e1';
+        if (p.facing === 1) {
+          const gunX = x + 15 + recoilOffset;
+          ctx.fillRect(gunX, gunY, 13, 5);
+          ctx.fillStyle = primary;
+          ctx.fillRect(gunX + 2, gunY + 1, 7, 2);
+          if (p.muzzleTimer > 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(gunX + 13, gunY - 2, 7, 9);
+          }
+        } else {
+          const gunX = x - 4 + recoilOffset;
+          ctx.fillRect(gunX, gunY, 13, 5);
+          ctx.fillStyle = primary;
+          ctx.fillRect(gunX + 4, gunY + 1, 7, 2);
+          if (p.muzzleTimer > 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(gunX - 7, gunY - 2, 7, 9);
+          }
+        }
+
+        // Overhead Mini HP Pips & Cooldown Bar
+        const barW = 24;
+        const pipW = Math.floor((barW - (p.maxHp - 1) * 2) / p.maxHp);
+        for (let i = 0; i < p.maxHp; i++) {
+          ctx.fillStyle = i < p.hp ? primary : 'rgba(255,255,255,0.18)';
+          ctx.fillRect(x + i * (pipW + 2), y - 10, pipW, 3);
+        }
+
+        if (p.cooldown > 0.03) {
+          const maxCd = p.rapidTimer > 0 ? BASE_COOLDOWN * 0.48 : BASE_COOLDOWN;
+          const pct = Math.max(0, 1 - p.cooldown / maxCd);
+          ctx.fillStyle = 'rgba(255,255,255,0.2)';
+          ctx.fillRect(x, y - 5, barW, 2);
+          ctx.fillStyle = '#ffd700';
+          ctx.fillRect(x, y - 5, Math.round(barW * pct), 2);
+        }
+      }
+
+      function drawLasers() {
+        for (const l of lasers) {
+          for (let i = 0; i < l.trail.length; i++) {
+            const t = l.trail[i];
+            const alpha = ((i + 1) / (l.trail.length + 1)) * 0.45;
+            ctx.fillStyle = l.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+            ctx.fillRect(Math.round(t.x), Math.round(t.y), l.w, l.h);
+          }
+
+          ctx.fillStyle = l.color;
+          ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y) - 1, l.w + 2, l.h + 2);
+
+          ctx.fillStyle = l.coreColor;
+          ctx.fillRect(Math.round(l.x) + 2, Math.round(l.y) + 1, l.w - 4, l.h - 2);
+        }
+      }
+
+      function drawPowerup() {
+        if (!activePowerup) return;
+        const bobY = Math.sin(activePowerup.bobTimer) * 4;
+        const px = Math.round(activePowerup.x);
+        const py = Math.round(activePowerup.y + bobY);
+        const col = activePowerup.type.color;
+
+        ctx.fillStyle = '#0b0e1e';
+        ctx.fillRect(px - 11, py - 11, 22, 22);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px - 11, py - 11, 22, 22);
+
+        ctx.fillStyle = col;
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const letter = activePowerup.type.id === 'rapid' ? 'R' : (activePowerup.type.id === 'triple' ? '3X' : 'S');
+        ctx.fillText(letter, px, py + 1);
+      }
+
+      function drawParticlesAndText() {
+        for (const pt of particles) {
+          ctx.fillStyle = pt.color;
+          ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.size, pt.size);
+        }
+
+        ctx.font = '9px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        for (const ft of floatingTexts) {
+          ctx.fillStyle = '#000000';
+          ctx.fillText(ft.text, Math.round(ft.x) + 1, Math.round(ft.y) + 1);
+          ctx.fillStyle = ft.color;
+          ctx.fillText(ft.text, Math.round(ft.x), Math.round(ft.y));
+        }
+      }
+
+      function drawHUD() {
+        // Top Scoreboard Panel
+        ctx.fillStyle = 'rgba(8, 11, 24, 0.82)';
+        ctx.fillRect(12, 10, 500, 44);
+        ctx.strokeStyle = '#2b386b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(12, 10, 500, 44);
+
+        ctx.textBaseline = 'middle';
+
+        // Player 1 Info
+        ctx.textAlign = 'left';
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.fillStyle = '#00f3ff';
+        ctx.fillText(`P1 (${matchState.stats.p1.wins}/${WINS_NEEDED})`, 22, 23);
+
+        // P1 Round Win Pips (First to 5)
+        for (let i = 0; i < WINS_NEEDED; i++) {
+          ctx.fillStyle = i < matchState.stats.p1.wins ? '#00f3ff' : '#1f294d';
+          ctx.fillRect(22 + i * 16, 36, 12, 8);
+        }
+
+        // Center Round Counter
+        ctx.textAlign = 'center';
+        ctx.font = '9px "Press Start 2P", monospace';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText(`ROUND ${matchState.roundNumber}`, 262, 23);
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.fillStyle = '#8b9bb4';
+        ctx.fillText(`FIRST TO ${WINS_NEEDED}`, 262, 39);
+
+        // Player 2 / CPU Info
+        ctx.textAlign = 'right';
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.fillStyle = '#ff2a85';
+        const p2Label = settings.mode === '1vCPU'
+          ? `CPU:${settings.difficulty.toUpperCase()} (${matchState.stats.p2.wins}/${WINS_NEEDED})`
+          : `P2 (${matchState.stats.p2.wins}/${WINS_NEEDED})`;
+        ctx.fillText(p2Label, 500, 23);
+
+        for (let i = 0; i < WINS_NEEDED; i++) {
+          const filled = i < matchState.stats.p2.wins;
+          ctx.fillStyle = filled ? '#ff2a85' : '#1f294d';
+          ctx.fillRect(488 - i * 16, 36, 12, 8);
+        }
+
+        // Center Dramatic Round Banner (Countdown / Round Over / Match Over)
+        if (matchState.phase === 'COUNTDOWN' || matchState.phase === 'ROUND_OVER' || matchState.phase === 'MATCH_OVER') {
+          ctx.fillStyle = 'rgba(6, 8, 18, 0.80)';
+          ctx.fillRect(0, GAME_H * 0.5 - 46, GAME_W, 92);
+
+          ctx.fillStyle = matchState.bannerColor;
+          ctx.fillRect(0, GAME_H * 0.5 - 46, GAME_W, 3);
+          ctx.fillRect(0, GAME_H * 0.5 + 43, GAME_W, 3);
+
+          ctx.textAlign = 'center';
+          ctx.font = '24px "Press Start 2P", monospace';
+          ctx.fillStyle = '#000000';
+          ctx.fillText(matchState.bannerMain, GAME_W * 0.5 + 3, GAME_H * 0.5 - 8 + 3);
+          ctx.fillStyle = matchState.bannerColor;
+          ctx.fillText(matchState.bannerMain, GAME_W * 0.5, GAME_H * 0.5 - 8);
+
+          ctx.font = '11px "Press Start 2P", monospace';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(matchState.bannerSub, GAME_W * 0.5, GAME_H * 0.5 + 22);
+        }
+      }
+
+      function render() {
+        const arena = currentArena();
+        ctx.save();
+
+        if (matchState.shakeTimer > 0) {
+          const sx = (Math.random() - 0.5) * 2 * matchState.shakeIntensity;
+          const sy = (Math.random() - 0.5) * 2 * matchState.shakeIntensity;
+          ctx.translate(Math.round(sx), Math.round(sy));
+        }
+
+        drawBackground(arena);
+        drawArenaGeometry(arena);
+        drawPowerup();
+
+        for (const p of players) {
+          drawPixelPlayer(p);
+        }
+
+        drawLasers();
+        drawParticlesAndText();
+        drawHUD();
+
+        ctx.restore();
+      }
+
+      // =========================================================================
+      // 9. RESPONSIVE CANVAS SCALING & GAME LOOP
+      // =========================================================================
+      function resizeCanvas() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const aspect = GAME_W / GAME_H;
+
+        let targetW = vw - 12;
+        let targetH = targetW / aspect;
+
+        if (targetH > vh - 12) {
+          targetH = vh - 12;
+          targetW = targetH * aspect;
+        }
+
+        canvas.style.width = `${Math.floor(targetW)}px`;
+        canvas.style.height = `${Math.floor(targetH)}px`;
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 120));
+
+      let lastTime = 0;
+      function gameLoop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
+        lastTime = timestamp;
+
+        update(dt);
+        render();
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      // =========================================================================
+      // 10. KEYBOARD & MULTI-TOUCH CONTROLS
+      // =========================================================================
+      function syncKeyboardInputs() {
+        if (settings.mode === '1vCPU') {
+          // In 1vCPU mode, BOTH WASD and Arrow Keys control Player 1 seamlessly!
+          inputs.p1.left  = keysDown.has('KeyA') || keysDown.has('ArrowLeft');
+          inputs.p1.right = keysDown.has('KeyD') || keysDown.has('ArrowRight');
+          inputs.p1.jump  = keysDown.has('KeyW') || keysDown.has('ArrowUp');
+          inputs.p1.down  = keysDown.has('KeyS') || keysDown.has('ArrowDown');
+          inputs.p1.shoot = keysDown.has('Space') || keysDown.has('Enter') || keysDown.has('KeyJ') || keysDown.has('KeyZ');
+        } else {
+          // In 1v1 mode, split controls between P1 (WASD + Space) and P2 (Arrows + Enter/M/Slash)
+          inputs.p1.left  = keysDown.has('KeyA');
+          inputs.p1.right = keysDown.has('KeyD');
+          inputs.p1.jump  = keysDown.has('KeyW');
+          inputs.p1.down  = keysDown.has('KeyS');
+          inputs.p1.shoot = keysDown.has('Space') || keysDown.has('KeyF') || keysDown.has('KeyG');
+
+          inputs.p2.left  = keysDown.has('ArrowLeft');
+          inputs.p2.right = keysDown.has('ArrowRight');
+          inputs.p2.jump  = keysDown.has('ArrowUp');
+          inputs.p2.down  = keysDown.has('ArrowDown');
+          inputs.p2.shoot = keysDown.has('Enter') || keysDown.has('KeyM') || keysDown.has('Numpad0') || keysDown.has('Slash');
+        }
+      }
+
+      window.addEventListener('keydown', (e) => {
+        const blockCodes = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+        if (blockCodes.includes(e.code)) {
+          e.preventDefault();
+        }
+
+        if (e.code === 'Escape' || e.code === 'KeyP') {
+          if (matchState.phase !== 'MENU' && matchState.phase !== 'MATCH_OVER') {
+            togglePause();
+          }
+          return;
+        }
+
+        const wasDown = keysDown.has(e.code);
+        keysDown.add(e.code);
+        syncKeyboardInputs();
+
+        if (!wasDown) {
+          if (settings.mode === '1vCPU') {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.p1.jumpPressed = true;
+            if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyJ' || e.code === 'KeyZ') inputs.p1.shootPressed = true;
+          } else {
+            if (e.code === 'KeyW') inputs.p1.jumpPressed = true;
+            if (e.code === 'Space' || e.code === 'KeyF' || e.code === 'KeyG') inputs.p1.shootPressed = true;
+            if (e.code === 'ArrowUp') inputs.p2.jumpPressed = true;
+            if (e.code === 'Enter' || e.code === 'KeyM' || e.code === 'Numpad0' || e.code === 'Slash') inputs.p2.shootPressed = true;
+          }
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        keysDown.delete(e.code);
+        syncKeyboardInputs();
+      });
+
+      window.addEventListener('blur', () => {
+        keysDown.clear();
+        syncKeyboardInputs();
+      });
+
+      // Touch Controls Builder & Multi-Touch Handler
+      const touchContainer = document.getElementById('touch-controls');
+
+      function isTouchDevice() {
+        return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      }
+
+      function buildTouchControls() {
+        touchContainer.innerHTML = '';
+
+        if (settings.mode === '1vCPU') {
+          touchContainer.innerHTML = `
+            <div class="touch-zone touch-left-cluster">
+              <div class="t-btn" data-player="p1" data-action="left">&#9664;</div>
+              <div class="t-btn" data-player="p1" data-action="right">&#9654;</div>
+            </div>
+            <div class="touch-zone touch-right-cluster" style="align-items: flex-end;">
+              <div class="t-btn" data-player="p1" data-action="down" style="width:46px;height:46px;font-size:10px;">&#9660;</div>
+              <div class="t-btn" data-player="p1" data-action="jump">JUMP</div>
+              <div class="t-btn fire-btn" data-player="p1" data-action="shoot">FIRE</div>
+            </div>
+          `;
+        } else {
+          touchContainer.innerHTML = `
+            <div class="touch-zone touch-p1-split">
+              <div class="touch-row">
+                <div class="t-btn small-split" data-player="p1" data-action="jump">W</div>
+                <div class="t-btn small-split fire-btn" data-player="p1" data-action="shoot">FIRE</div>
+              </div>
+              <div class="touch-row">
+                <div class="t-btn small-split" data-player="p1" data-action="left">&#9664;</div>
+                <div class="t-btn small-split" data-player="p1" data-action="down">&#9660;</div>
+                <div class="t-btn small-split" data-player="p1" data-action="right">&#9654;</div>
+              </div>
+            </div>
+            <div class="touch-zone touch-p2-split">
+              <div class="touch-row">
+                <div class="t-btn small-split fire-btn p2-style" data-player="p2" data-action="shoot">FIRE</div>
+                <div class="t-btn small-split p2-style" data-player="p2" data-action="jump">&#9650;</div>
+              </div>
+              <div class="touch-row">
+                <div class="t-btn small-split p2-style" data-player="p2" data-action="left">&#9664;</div>
+                <div class="t-btn small-split p2-style" data-player="p2" data-action="down">&#9660;</div>
+                <div class="t-btn small-split p2-style" data-player="p2" data-action="right">&#9654;</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      function updateTouchVisibility() {
+        const shouldShow =
+          (settings.touchMode === 'on' || (settings.touchMode === 'auto' && isTouchDevice())) &&
+          matchState.phase !== 'MENU' &&
+          matchState.phase !== 'MATCH_OVER' &&
+          !matchState.paused;
+
+        if (shouldShow) {
+          buildTouchControls();
+          touchContainer.classList.add('active');
+        } else {
+          touchContainer.classList.remove('active');
+        }
+      }
+
+      function handleTouchPoints(e) {
+        if (!touchContainer.classList.contains('active')) return;
+        e.preventDefault();
+
+        const activeActions = {
+          p1: { left: false, right: false, jump: false, down: false, shoot: false },
+          p2: { left: false, right: false, jump: false, down: false, shoot: false }
+        };
+
+        const buttons = touchContainer.querySelectorAll('.t-btn');
+        buttons.forEach(btn => btn.classList.remove('pressed'));
+
+        for (let i = 0; i < e.touches.length; i++) {
+          const t = e.touches[i];
+          const el = document.elementFromPoint(t.clientX, t.clientY);
+          const btn = el ? el.closest('.t-btn') : null;
+          if (btn) {
+            const pKey = btn.dataset.player;
+            const act = btn.dataset.action;
+            if (activeActions[pKey] && act in activeActions[pKey]) {
+              activeActions[pKey][act] = true;
+              btn.classList.add('pressed');
+            }
+          }
+        }
+
+        ['p1', 'p2'].forEach(pKey => {
+          if (activeActions[pKey].jump && !inputs[pKey].jump) {
+            inputs[pKey].jumpPressed = true;
+          }
+          if (activeActions[pKey].shoot && !inputs[pKey].shoot) {
+            inputs[pKey].shootPressed = true;
+          }
+          inputs[pKey].left = activeActions[pKey].left;
+          inputs[pKey].right = activeActions[pKey].right;
+          inputs[pKey].jump = activeActions[pKey].jump;
+          inputs[pKey].down = activeActions[pKey].down;
+          inputs[pKey].shoot = activeActions[pKey].shoot;
+        });
+      }
+
+      touchContainer.addEventListener('touchstart', handleTouchPoints, { passive: false });
+      touchContainer.addEventListener('touchmove', handleTouchPoints, { passive: false });
+      touchContainer.addEventListener('touchend', handleTouchPoints, { passive: false });
+      touchContainer.addEventListener('touchcancel', handleTouchPoints, { passive: false });
+
+      // =========================================================================
+      // 11. UI & MENU BINDINGS
+      // =========================================================================
+      const mainMenuEl = document.getElementById('main-menu');
+      const pauseMenuEl = document.getElementById('pause-menu');
+      const victoryMenuEl = document.getElementById('victory-menu');
+      const controlsLegendBox = document.getElementById('controls-legend-box');
+
+      function updateControlsLegend() {
+        if (settings.mode === '1vCPU') {
+          controlsLegendBox.innerHTML = `
+            <div><strong class="p1">PLAYER 1 (KEYBOARD):</strong> Move with <strong>A / D</strong> or <strong>LEFT / RIGHT ARROWS</strong>. Jump with <strong>W</strong> or <strong>UP ARROW</strong>. Drop down with <strong>S / DOWN</strong>. Shoot with <strong>SPACE</strong> or <strong>ENTER</strong>.</div>
+            <div style="margin-top:6px;"><strong class="p2">MOBILE / TOUCH:</strong> On-screen arcade buttons activate automatically on touchscreens (or toggle via <strong>TOUCH</strong> in top-right).</div>
+          `;
+        } else {
+          controlsLegendBox.innerHTML = `
+            <div><strong class="p1">PLAYER 1 (CYAN):</strong> <strong>A / D</strong> Move &bull; <strong>W</strong> Jump &bull; <strong>S</strong> Drop &bull; <strong>SPACE</strong> Laser</div>
+            <div style="margin-top:6px;"><strong class="p2">PLAYER 2 (MAGENTA):</strong> <strong>LEFT / RIGHT</strong> Move &bull; <strong>UP</strong> Jump &bull; <strong>DOWN</strong> Drop &bull; <strong>ENTER / M</strong> Laser</div>
+          `;
+        }
+      }
+
+      function hideAllOverlays() {
+        mainMenuEl.classList.add('hidden');
+        pauseMenuEl.classList.add('hidden');
+        victoryMenuEl.classList.add('hidden');
+      }
+
+      function showMainMenu() {
+        matchState.phase = 'MENU';
+        matchState.paused = false;
+        hideAllOverlays();
+        mainMenuEl.classList.remove('hidden');
+        updateTouchVisibility();
+      }
+
+      function togglePause() {
+        if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') return;
+        matchState.paused = !matchState.paused;
+        if (matchState.paused) {
+          pauseMenuEl.classList.remove('hidden');
+        } else {
+          pauseMenuEl.classList.add('hidden');
+        }
+        updateTouchVisibility();
+        audio.click();
+      }
+
+      function showVictoryModal() {
+        hideAllOverlays();
+        updateTouchVisibility();
+
+        const p1 = matchState.stats.p1;
+        const p2 = matchState.stats.p2;
+        const p1Won = p1.wins >= WINS_NEEDED;
+        const p2Label = settings.mode === '1vCPU' ? `CPU (${settings.difficulty.toUpperCase()})` : 'PLAYER 2';
+
+        const titleEl = document.getElementById('victory-title');
+        titleEl.textContent = p1Won ? 'PLAYER 1 WINS!' : `${p2Label} WINS!`;
+
+        document.getElementById('victory-subtitle').textContent =
+          `FINAL SCORE: ${p1.wins} - ${p2.wins} • FIRST TO ${WINS_NEEDED}`;
+
+        const p1Acc = p1.shots > 0 ? Math.round((p1.hits / p1.shots) * 100) : 0;
+        const p2Acc = p2.shots > 0 ? Math.round((p2.hits / p2.shots) * 100) : 0;
+
+        document.getElementById('victory-stats').innerHTML = `
+          <div class="stat-box p1-box">
+            <div style="color:#00f3ff;margin-bottom:6px;">PLAYER 1</div>
+            <div>ROUNDS WON: ${p1.wins}</div>
+            <div>SHOTS FIRED: ${p1.shots}</div>
+            <div>LASER HITS: ${p1.hits}</div>
+            <div>ACCURACY: ${p1Acc}%</div>
+          </div>
+          <div class="stat-box p2-box">
+            <div style="color:#ff2a85;margin-bottom:6px;">${p2Label}</div>
+            <div>ROUNDS WON: ${p2.wins}</div>
+            <div>SHOTS FIRED: ${p2.shots}</div>
+            <div>LASER HITS: ${p2.hits}</div>
+            <div>ACCURACY: ${p2Acc}%</div>
+          </div>
+        `;
+
+        victoryMenuEl.classList.remove('hidden');
+      }
+
+      // Mode buttons
+      document.querySelectorAll('#mode-group .arcade-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          audio.click();
+          document.querySelectorAll('#mode-group .arcade-btn').forEach(b => b.classList.remove('selected-cyan', 'selected-magenta'));
+          settings.mode = btn.dataset.mode;
+          btn.classList.add(settings.mode === '1vCPU' ? 'selected-cyan' : 'selected-magenta');
+          document.getElementById('cpu-diff-section').style.display = settings.mode === '1vCPU' ? 'block' : 'none';
+          updateControlsLegend();
+        });
+      });
+
+      // Difficulty buttons
+      document.querySelectorAll('#diff-group .arcade-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          audio.click();
+          document.querySelectorAll('#diff-group .arcade-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          settings.difficulty = btn.dataset.diff;
+        });
+      });
+
+      // Arena buttons
+      document.querySelectorAll('#arena-group .arcade-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          audio.click();
+          document.querySelectorAll('#arena-group .arcade-btn').forEach(b => b.classList.remove('selected-cyan'));
+          btn.classList.add('selected-cyan');
+          settings.arenaChoice = btn.dataset.arena;
+        });
+      });
+
+      // Powerups toggle
+      function togglePowerups() {
+        audio.click();
+        settings.powerupsEnabled = !settings.powerupsEnabled;
+        if (!settings.powerupsEnabled) activePowerup = null;
+        const label = `POWER-UPS: ${settings.powerupsEnabled ? 'ON' : 'OFF'}`;
+        document.getElementById('btn-powerups-toggle').textContent = label;
+        document.getElementById('btn-powerups-toggle').classList.toggle('selected-cyan', settings.powerupsEnabled);
+        document.getElementById('btn-pause-powerups').textContent = label;
+      }
+      document.getElementById('btn-powerups-toggle').addEventListener('click', togglePowerups);
+      document.getElementById('btn-pause-powerups').addEventListener('click', togglePowerups);
+
+      // Round HP toggle (3 HP vs 1-Hit KO)
+      document.getElementById('btn-hp-toggle').addEventListener('click', (e) => {
+        audio.click();
+        settings.maxHp = settings.maxHp === 3 ? 1 : 3;
+        e.target.textContent = settings.maxHp === 3 ? 'ROUND HP: 3' : '1-HIT LASER KO';
+      });
+
+      // Top bar utility buttons
+      document.getElementById('btn-sound').addEventListener('click', (e) => {
+        audio.muted = !audio.muted;
+        e.target.textContent = `SFX: ${audio.muted ? 'OFF' : 'ON'}`;
+        if (!audio.muted) audio.click();
+      });
+
+      document.getElementById('btn-scanlines').addEventListener('click', (e) => {
+        audio.click();
+        settings.scanlines = !settings.scanlines;
+        document.getElementById('scanlines').classList.toggle('hidden', !settings.scanlines);
+        e.target.textContent = `CRT: ${settings.scanlines ? 'ON' : 'OFF'}`;
+      });
+
+      function cycleTouchMode() {
+        audio.click();
+        const order = ['auto', 'on', 'off'];
+        const next = order[(order.indexOf(settings.touchMode) + 1) % order.length];
+        settings.touchMode = next;
+        const text = `TOUCH: ${next.toUpperCase()}`;
+        document.getElementById('btn-touch-toggle').textContent = text;
+        document.getElementById('btn-pause-touch').textContent = `TOUCH CONTROLS: ${next.toUpperCase()}`;
+        updateTouchVisibility();
+      }
+      document.getElementById('btn-touch-toggle').addEventListener('click', cycleTouchMode);
+      document.getElementById('btn-pause-touch').addEventListener('click', cycleTouchMode);
+
+      document.getElementById('btn-pause').addEventListener('click', () => {
+        if (matchState.phase === 'MENU') {
+          audio.click();
+          return;
+        }
+        togglePause();
+      });
+
+      // Match flow buttons
+      document.getElementById('btn-start-match').addEventListener('click', () => {
+        audio.init();
+        audio.click();
+        startNewMatch();
+      });
+
+      document.getElementById('btn-resume').addEventListener('click', togglePause);
+      document.getElementById('btn-restart-match').addEventListener('click', () => {
+        audio.click();
+        startNewMatch();
+      });
+      document.getElementById('btn-to-main-menu').addEventListener('click', () => {
+        audio.click();
+        showMainMenu();
+      });
+
+      document.getElementById('btn-play-again').addEventListener('click', () => {
+        audio.click();
+        startNewMatch();
+      });
+      document.getElementById('btn-victory-menu').addEventListener('click', () => {
+        audio.click();
+        showMainMenu();
+      });
+
+      // Boot sequence on window load
+      window.addEventListener('load', () => {
+        updateControlsLegend();
+        resizeCanvas();
+        requestAnimationFrame(gameLoop);
+      });
+    })();
+  </script>
+</body>
+</html>
