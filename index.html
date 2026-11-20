@@ -1380,15 +1380,15 @@
       });
 
       function getPlayerRawInput(playerIndex) {
-        if (playerIndex === 1) {
+        if (settings.mode === 'online' || settings.mode === 'cpu' || playerIndex === 1) {
           if (settings.mode === 'cpu' || settings.mode === 'online') {
-            // Single-player / Online mode allows BOTH WASD+Space and ArrowKeys+Enter/Space
+            // Single-player & Online (both Host and Guest) allow WASD+Space, ArrowKeys+Enter/Space, AND primary mobile touch buttons
             return {
-              left: !!(keys['KeyA'] || keys['ArrowLeft'] || touchState[1].left),
-              right: !!(keys['KeyD'] || keys['ArrowRight'] || touchState[1].right),
-              up: !!(keys['KeyW'] || keys['ArrowUp'] || touchState[1].up),
+              left: !!(keys['KeyA'] || keys['ArrowLeft'] || touchState[1].left || touchState[2].left),
+              right: !!(keys['KeyD'] || keys['ArrowRight'] || touchState[1].right || touchState[2].right),
+              up: !!(keys['KeyW'] || keys['ArrowUp'] || touchState[1].up || touchState[2].up),
               down: !!(keys['KeyS'] || keys['ArrowDown']),
-              shoot: !!(keys['Space'] || keys['Enter'] || keys['KeyF'] || keys['Slash'] || touchState[1].shoot)
+              shoot: !!(keys['Space'] || keys['Enter'] || keys['KeyF'] || keys['KeyM'] || keys['Slash'] || touchState[1].shoot || touchState[2].shoot)
             };
           } else {
             // 1v1 Local mode: P1 strictly uses WASD + Space
@@ -1420,18 +1420,22 @@
           const key = btn.dataset.key;
 
           const press = (ev) => {
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             audio.ensureContext();
             touchState[p][key] = true;
             btn.classList.add('pressed');
           };
 
           const release = (ev) => {
-            ev.preventDefault();
+            if (ev && ev.cancelable) ev.preventDefault();
             touchState[p][key] = false;
             btn.classList.remove('pressed');
           };
 
+          btn.addEventListener('pointerdown', press);
+          btn.addEventListener('pointerup', release);
+          btn.addEventListener('pointercancel', release);
+          btn.addEventListener('pointerleave', release);
           btn.addEventListener('touchstart', press, { passive: false });
           btn.addEventListener('touchend', release, { passive: false });
           btn.addEventListener('touchcancel', release, { passive: false });
