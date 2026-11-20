@@ -240,6 +240,12 @@
       color: #fff;
       box-shadow: 0 4px 0 #8a1144, 0 0 14px rgba(255, 42, 133, 0.5);
     }
+    .arcade-btn.diff-extreme.selected {
+      border-color: #b829ff;
+      background: rgba(184, 41, 255, 0.28);
+      color: #fff;
+      box-shadow: 0 4px 0 #5b0e85, 0 0 18px rgba(184, 41, 255, 0.7);
+    }
 
     .start-btn {
       margin-top: 16px;
@@ -466,6 +472,7 @@
             <button class="arcade-btn diff-medium selected" data-diff="Medium">MEDIUM</button>
             <button class="arcade-btn diff-hard" data-diff="Hard">HARD</button>
             <button class="arcade-btn diff-impossible" data-diff="Impossible">IMPOSSIBLE</button>
+            <button class="arcade-btn diff-extreme" data-diff="Extreme">EXTREME</button>
           </div>
         </div>
 
@@ -622,6 +629,18 @@
           this.playTone(1350 * pitchBoost, 320 * pitchBoost, 0.08, 'square', 0.08);
         }
 
+        chargedLaser() {
+          this.playNoise(0.22, 0.22);
+          this.playTone(1180, 95, 0.28, 'sawtooth', 0.18);
+          this.playTone(620, 65, 0.32, 'square', 0.16, 0.02);
+          this.playTone(1560, 240, 0.18, 'triangle', 0.14);
+        }
+
+        chargeReady() {
+          this.playTone(660, 990, 0.09, 'triangle', 0.11);
+          this.playTone(990, 1320, 0.11, 'square', 0.09, 0.06);
+        }
+
         jump() {
           this.playTone(180, 520, 0.14, 'square', 0.11);
         }
@@ -693,12 +712,14 @@
       const GAME_H = 450;
       const WINS_NEEDED = 5;
 
-      const GRAVITY = 1520;
-      const MOVE_SPEED = 245;
-      const JUMP_VELOCITY = -540;
-      const JUMP_PAD_VELOCITY = -790;
-      const LASER_SPEED = 690;
-      const BASE_COOLDOWN = 0.30; // seconds
+      const GRAVITY = 1380;
+      const MOVE_SPEED = 252;
+      const JUMP_VELOCITY = -575;
+      const JUMP_PAD_VELOCITY = -810;
+      const LASER_SPEED = 700;
+      const CHARGED_LASER_SPEED = 940;
+      const CHARGE_DURATION = 3.0; // Hold shoot for 3.0 seconds for a 3 HP Mega-Laser
+      const BASE_COOLDOWN = 0.34;  // Standard single-shot reload cooldown
 
       // Three distinct pixel arenas with solid cover blocks, one-way platforms, and jump pads
       const ARENAS = [
@@ -814,8 +835,8 @@
       ];
 
       const POWERUP_TYPES = [
-        { id: 'rapid', label: 'RAPID', color: '#ffd700', duration: 7.5 },
-        { id: 'triple', label: 'TRIPLE', color: '#ff2a85', duration: 7.0 },
+        { id: 'rapid', label: 'RAPID FIRE', color: '#ffd700', duration: 8.0 },
+        { id: 'triple', label: 'SPREAD', color: '#ff2a85', duration: 7.5 },
         { id: 'shield', label: 'SHIELD', color: '#2ce8a2', duration: 9.0 }
       ];
 
@@ -829,10 +850,10 @@
 
       const settings = {
         mode: '1vCPU',         // '1vCPU' | '1v1'
-        difficulty: 'Medium',  // 'Easy' | 'Medium' | 'Hard' | 'Impossible'
+        difficulty: 'Medium',  // 'Easy' | 'Medium' | 'Hard' | 'Impossible' | 'Extreme'
         arenaChoice: 'cycle',  // 'cycle' | '0' | '1' | '2'
         powerupsEnabled: true,
-        maxHp: 3,              // 3 HP or 1 HP (Instant KO mode)
+        maxHp: 3,              // 3 HP standard (Charged shot deals 3 HP!)
         scanlines: true,
         touchMode: 'auto'      // 'auto' | 'on' | 'off'
       };
@@ -851,15 +872,15 @@
         bannerColor: '#00f3ff',
         powerupSpawnTimer: 5.5,
         stats: {
-          p1: { wins: 0, shots: 0, hits: 0 },
-          p2: { wins: 0, shots: 0, hits: 0 }
+          p1: { wins: 0, shots: 0, hits: 0, chargedHits: 0 },
+          p2: { wins: 0, shots: 0, hits: 0, chargedHits: 0 }
         }
       };
 
       // Input state for P1 and P2
       const inputs = {
-        p1: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false },
-        p2: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false }
+        p1: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false, shootReleased: false },
+        p2: { left: false, right: false, jump: false, down: false, shoot: false, jumpPressed: false, shootPressed: false, shootReleased: false }
       };
 
       const keysDown = new Set();
@@ -888,13 +909,60 @@
       }
 
       // =========================================================================
+      // 3B. CORE COLLISION & VISUAL EFFECT HELPERS
+      // =========================================================================
+      function rectsOverlap(a, b) {
+        return (
+          a.x < b.x + b.w &&
+          a.x + a.w > b.x &&
+          a.y < b.y + b.h &&
+          a.y + a.h > b.y
+        );
+      }
+
+      function triggerShake(intensity, duration) {
+        matchState.shakeIntensity = Math.max(matchState.shakeIntensity, intensity);
+        matchState.shakeTimer = Math.max(matchState.shakeTimer, duration);
+      }
+
+      function spawnParticles(x, y, color, count = 10, maxSpeed = 140) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 25 + Math.random() * (maxSpeed - 25);
+          const life = 0.22 + Math.random() * 0.26;
+          particles.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 40,
+            size: Math.random() < 0.65 ? 3 : 2,
+            color,
+            life,
+            maxLife: life
+          });
+        }
+      }
+
+      function spawnFloatingText(x, y, text, color = '#ffffff') {
+        floatingTexts.push({
+          x,
+          y,
+          text,
+          color,
+          life: 0.85
+        });
+      }
+
+      // =========================================================================
       // 4. PLAYER CREATION & ROUND LIFECYCLE
       // =========================================================================
       function createPlayer(id, spawnX, spawnY, facing, isCPU = false) {
+        const isExtremeCPU = isCPU && settings.difficulty === 'Extreme';
         return {
           id, // 1 or 2
           name: id === 1 ? 'P1' : (isCPU ? `CPU (${settings.difficulty.toUpperCase()})` : 'P2'),
           isCPU,
+          reloadMultiplier: isExtremeCPU ? 2.0 : 1.0, // Extreme CPU has 2x reload & charge speed
           x: spawnX - 12,
           y: spawnY,
           w: 24,
@@ -909,6 +977,8 @@
           hp: settings.maxHp,
           maxHp: settings.maxHp,
           cooldown: 0,
+          chargeTime: 0,
+          chargeReadyPlayed: false,
           recoilTimer: 0,
           muzzleTimer: 0,
           hurtTimer: 0,
@@ -927,13 +997,15 @@
             holdJumpTimer: 0,
             wantDrop: false,
             wantShoot: false,
+            wantCharge: false,
             targetY: spawnY,
             strafeTimer: 0,
+            dodgeCooldown: 0,
             stuckTimer: 0,
             lastX: spawnX - 12,
             vaultDir: 0,
             vaultTimer: 0,
-            navGoal: null // { nextNode, takeoffX, landX, jumping, hopTimer }
+            navGoal: null
           }
         };
       }
@@ -1154,7 +1226,7 @@
         particles = [];
         floatingTexts = [];
         activePowerup = null;
-        matchState.powerupSpawnTimer = 4.5;
+        matchState.powerupSpawnTimer = 5.0;
 
         players = [
           createPlayer(1, arena.spawns[0].x, arena.spawns[0].y, arena.spawns[0].facing, false),
@@ -1170,6 +1242,7 @@
           inputs[k].shoot = false;
           inputs[k].jumpPressed = false;
           inputs[k].shootPressed = false;
+          inputs[k].shootReleased = false;
         });
         syncKeyboardInputs();
 
@@ -1187,8 +1260,8 @@
         matchState.hitStopTimer = 0;
         matchState.shakeTimer = 0;
         matchState.stats = {
-          p1: { wins: 0, shots: 0, hits: 0 },
-          p2: { wins: 0, shots: 0, hits: 0 }
+          p1: { wins: 0, shots: 0, hits: 0, chargedHits: 0 },
+          p2: { wins: 0, shots: 0, hits: 0, chargedHits: 0 }
         };
 
         if (settings.arenaChoice === 'cycle') {
@@ -1203,17 +1276,18 @@
       }
 
       // =========================================================================
-      // 5. SMART AI BRAIN (EASY, MEDIUM, HARD, IMPOSSIBLE)
+      // 5. SMART AI BRAIN (EASY, MEDIUM, HARD, IMPOSSIBLE, EXTREME)
       // =========================================================================
       function updateCPU(cpu, opponent, dt) {
         if (!cpu.alive || !opponent.alive) return;
 
         const diff = settings.difficulty;
         const params = {
-          Easy:       { react: 0.30, aimTolerance: 44, shootChance: 0.44, dodgeSkill: 0.18, leadShot: 0.0, aggroDist: 280, lookahead: 46, vaultChance: 0.85, jumpHold: 0.34, climbChance: 0.72 },
-          Medium:     { react: 0.16, aimTolerance: 25, shootChance: 0.70, dodgeSkill: 0.50, leadShot: 0.35, aggroDist: 235, lookahead: 66, vaultChance: 0.96, jumpHold: 0.38, climbChance: 0.92 },
-          Hard:       { react: 0.08, aimTolerance: 15, shootChance: 0.90, dodgeSkill: 0.85, leadShot: 0.78, aggroDist: 205, lookahead: 82, vaultChance: 1.00, jumpHold: 0.41, climbChance: 1.00 },
-          Impossible: { react: 0.03, aimTolerance: 8,  shootChance: 0.99, dodgeSkill: 0.98, leadShot: 1.0,  aggroDist: 180, lookahead: 96, vaultChance: 1.00, jumpHold: 0.43, climbChance: 1.00 }
+          Easy:       { react: 0.22, aimTolerance: 36, shootChance: 0.56, dodgeSkill: 0.62, dodgeRange: 250, leadShot: 0.15, aggroDist: 250, lookahead: 56, vaultChance: 0.92, jumpHold: 0.36, climbChance: 0.85, powerupRange: 85,  useCharge: false },
+          Medium:     { react: 0.13, aimTolerance: 22, shootChance: 0.78, dodgeSkill: 0.80, dodgeRange: 290, leadShot: 0.45, aggroDist: 220, lookahead: 72, vaultChance: 0.98, jumpHold: 0.39, climbChance: 0.96, powerupRange: 95,  useCharge: false },
+          Hard:       { react: 0.07, aimTolerance: 14, shootChance: 0.92, dodgeSkill: 0.93, dodgeRange: 330, leadShot: 0.82, aggroDist: 195, lookahead: 86, vaultChance: 1.00, jumpHold: 0.42, climbChance: 1.00, powerupRange: 105, useCharge: true  },
+          Impossible: { react: 0.03, aimTolerance: 9,  shootChance: 0.98, dodgeSkill: 0.98, dodgeRange: 370, leadShot: 0.96, aggroDist: 175, lookahead: 96, vaultChance: 1.00, jumpHold: 0.44, climbChance: 1.00, powerupRange: 110, useCharge: true  },
+          Extreme:    { react: 0.015, aimTolerance: 6, shootChance: 1.00, dodgeSkill: 1.00, dodgeRange: 420, leadShot: 1.00, aggroDist: 165, lookahead: 104, vaultChance: 1.00, jumpHold: 0.45, climbChance: 1.00, powerupRange: 115, useCharge: true }
         }[diff];
 
         const arena = currentArena();
@@ -1221,6 +1295,7 @@
 
         cpu.ai.thinkTimer -= dt;
         cpu.ai.strafeTimer -= dt;
+        cpu.ai.dodgeCooldown = Math.max(0, cpu.ai.dodgeCooldown - dt);
         cpu.ai.holdJumpTimer = Math.max(0, cpu.ai.holdJumpTimer - dt);
         cpu.ai.vaultTimer = Math.max(0, cpu.ai.vaultTimer - dt);
 
@@ -1233,54 +1308,92 @@
 
         const dxToOpp = oppCx - cpuCx;
         const dyToOpp = oppCy - cpuCy;
+        const distToOpp = Math.hypot(dxToOpp, dyToOpp);
 
-        // 1. Incoming Laser Threat Detection
+        // 1. Enhanced Incoming Laser Threat Detection & Evasion (All Difficulties)
         let incomingThreat = null;
+        let closestImpactTime = Infinity;
         for (const l of lasers) {
           if (l.ownerId === cpu.id) continue;
           const distX = cpuCx - l.x;
-          const approaching = (l.vx > 0 && distX > -10 && distX < 265) || (l.vx < 0 && distX < 10 && distX > -265);
-          if (approaching && Math.abs(l.y - cpuCy) < 34) {
+          const approaching = (l.vx > 0 && distX > -12 && distX < params.dodgeRange) ||
+                              (l.vx < 0 && distX < 12 && distX > -params.dodgeRange);
+          if (!approaching) continue;
+
+          const timeToImpact = Math.abs(distX) / Math.max(1, Math.abs(l.vx));
+          const predictedLaserY = l.y + l.vy * timeToImpact;
+          const dangerBand = l.isCharged ? 52 : 38;
+
+          if (Math.abs(predictedLaserY - cpuCy) < dangerBand && timeToImpact < closestImpactTime) {
+            closestImpactTime = timeToImpact;
             incomingThreat = l;
-            break;
           }
         }
 
-        if (incomingThreat && Math.random() < params.dodgeSkill) {
-          if (cpu.onGround) {
+        if (incomingThreat && cpu.ai.dodgeCooldown <= 0) {
+          if (Math.random() < params.dodgeSkill) {
+            cpu.ai.dodgeCooldown = diff === 'Extreme' ? 0.14 : (diff === 'Impossible' ? 0.18 : 0.25);
+            const laserAboveCenter = incomingThreat.y < cpuCy - 4;
+
+            if (cpu.onGround) {
+              // If shot is high and CPU is on an elevated platform, drop down; otherwise leap cleanly over it
+              if (laserAboveCenter && cpu.y < 330) {
+                cpu.ai.wantDrop = true;
+              } else {
+                cpu.ai.wantJump = true;
+                cpu.ai.holdJumpTimer = params.jumpHold;
+              }
+            } else if (cpu.y < 335) {
+              // In mid-air: drop through one-way platforms to get below shot
+              cpu.ai.wantDrop = true;
+            }
+
+            // Also strafe away from the incoming projectile's vertical/horizontal line
+            if (Math.abs(dxToOpp) > 70) {
+              cpu.ai.moveDir = dxToOpp > 0 ? 1 : -1;
+            }
+          }
+        }
+
+        // Also preemptively dodge if opponent is aiming a nearly-full 3-second Charged Shot directly at CPU
+        if (!incomingThreat && opponent.chargeTime >= 2.35 && Math.abs(dyToOpp) < 38 && cpu.onGround && cpu.ai.dodgeCooldown <= 0) {
+          if (Math.random() < params.dodgeSkill * 0.85) {
+            cpu.ai.dodgeCooldown = 0.28;
             cpu.ai.wantJump = true;
             cpu.ai.holdJumpTimer = params.jumpHold;
-          } else if (cpu.y < 320 && !cpu.ai.navGoal) {
-            cpu.ai.wantDrop = true;
           }
         }
 
-        // 2. Strategic Decision Tick (Multi-Tier Platform Graph Routing, Aiming & Firing)
+        // 2. Strategic Decision Tick (Player-First Priority, Multi-Tier Platform Routing & Firing)
         if (cpu.ai.thinkTimer <= 0) {
-          cpu.ai.thinkTimer = params.react * (0.8 + Math.random() * 0.4);
+          cpu.ai.thinkTimer = params.react * (0.85 + Math.random() * 0.3);
           cpu.ai.wantShoot = false;
 
+          // Always prioritize hunting & engaging the human player; only grab power-up if very close & opportunistic
           let goalX = oppCx;
           let goalY = oppCy;
           let goalBottom = oppBottom;
 
-          if (activePowerup && (diff === 'Hard' || diff === 'Impossible' || Math.random() < 0.6)) {
-            goalX = activePowerup.x;
-            goalY = activePowerup.y;
-            goalBottom = activePowerup.y + 12;
+          if (activePowerup) {
+            const distToPu = Math.hypot(activePowerup.x - cpuCx, activePowerup.y - cpuCy);
+            const puOnTheWay = Math.sign(activePowerup.x - cpuCx) === Math.sign(dxToOpp) && distToPu < distToOpp;
+            if (distToPu <= params.powerupRange || (puOnTheWay && distToPu <= params.powerupRange * 1.65)) {
+              goalX = activePowerup.x;
+              goalY = activePowerup.y;
+              goalBottom = activePowerup.y + 12;
+            }
           }
 
           const cpuNode = findSupportingNode(arena, cpuCx, cpuBottom);
           const goalNode = findSupportingNode(arena, goalX, goalBottom);
 
-          // Determine if we need to climb/navigate to another platform tier
+          // Navigate between platform tiers whenever opponent is on a higher or distant lower tier
           const needPlatformRoute = cpuNode && goalNode && cpuNode.id !== goalNode.id &&
-            (goalNode.y < cpuNode.y - 20 || (goalNode.y > cpuNode.y + 35 && Math.abs(goalX - cpuCx) > 90));
+            (goalNode.y < cpuNode.y - 18 || (goalNode.y > cpuNode.y + 30 && Math.abs(goalX - cpuCx) > 80));
 
           if (needPlatformRoute && (cpu.ai.navGoal || Math.random() < params.climbChance)) {
             const hop = findShortestPlatformHop(arena, cpuNode, goalNode);
             if (hop) {
-              // Preserve active mid-air hop state so CPU doesn't abort or reverse mid-jump
               if (!cpu.ai.navGoal || !cpu.ai.navGoal.jumping || cpu.onGround) {
                 cpu.ai.navGoal = {
                   targetNode: hop.to,
@@ -1299,25 +1412,25 @@
             cpu.ai.navGoal = null;
           }
 
-          // Compute horizontal steering when not in a committed platform hop
+          // Compute tactical combat movement when not in a committed platform hop
           if (!cpu.ai.navGoal && cpu.ai.vaultTimer <= 0) {
             let targetX = goalX;
-            if (!activePowerup) {
+            if (goalX === oppCx) {
               const absDx = Math.abs(dxToOpp);
-              if (absDx > params.aggroDist + 55) {
+              if (absDx > params.aggroDist + 45) {
                 targetX = oppCx;
-              } else if (absDx < params.aggroDist - 55) {
-                targetX = cpuCx - Math.sign(dxToOpp || 1) * 95;
+              } else if (absDx < params.aggroDist - 50) {
+                targetX = cpuCx - Math.sign(dxToOpp || 1) * 90;
               } else if (cpu.ai.strafeTimer <= 0) {
-                cpu.ai.strafeTimer = 0.45 + Math.random() * 0.6;
-                targetX = cpuCx + (Math.random() < 0.5 ? -80 : 80);
+                cpu.ai.strafeTimer = diff === 'Extreme' ? 0.32 : (0.42 + Math.random() * 0.45);
+                targetX = cpuCx + (Math.random() < 0.5 ? -85 : 85);
               } else {
                 targetX = cpuCx;
               }
             }
-            targetX = Math.max(45, Math.min(GAME_W - 45, targetX));
+            targetX = Math.max(42, Math.min(GAME_W - 42, targetX));
             const moveDiff = targetX - cpuCx;
-            cpu.ai.moveDir = Math.abs(moveDiff) > 14 ? Math.sign(moveDiff) : 0;
+            cpu.ai.moveDir = Math.abs(moveDiff) > 12 ? Math.sign(moveDiff) : 0;
           }
 
           // Check if a solid cover block blocks line-of-sight between CPU and opponent
@@ -1325,15 +1438,15 @@
           const minX = Math.min(cpuCx, oppCx);
           const maxX = Math.max(cpuCx, oppCx);
           for (const s of arena.solids) {
-            if (s.y >= 400) continue; // Ignore floor
+            if (s.y >= 400) continue;
             if (s.x + s.w > minX && s.x < maxX && cpuCy > s.y - 6 && cpuCy < s.y + s.h) {
               blockedBySolid = true;
               break;
             }
           }
 
-          // Leap over blocking center pillar to gain clean line of sight
-          if (!cpu.ai.navGoal && blockedBySolid && cpu.onGround && (diff === 'Hard' || diff === 'Impossible' || Math.random() < 0.65)) {
+          // Leap over blocking center pillar to maintain line of sight on player
+          if (!cpu.ai.navGoal && blockedBySolid && cpu.onGround) {
             cpu.ai.wantJump = true;
             cpu.ai.holdJumpTimer = params.jumpHold;
             const dirTowardOpp = Math.sign(dxToOpp || 1);
@@ -1342,12 +1455,25 @@
             cpu.ai.vaultTimer = 0.44;
           }
 
-          // Predictive Aiming & Firing check
-          const travelTime = Math.abs(dxToOpp) / LASER_SPEED;
-          const predictedOppY = oppCy + opponent.vy * travelTime * params.leadShot * 0.45;
+          // Predictive Aiming & Firing / Charge Logic
+          const effectiveSpeed = cpu.chargeTime >= CHARGE_DURATION ? CHARGED_LASER_SPEED : LASER_SPEED;
+          const travelTime = Math.abs(dxToOpp) / effectiveSpeed;
+          const predictedOppY = oppCy + opponent.vy * travelTime * params.leadShot * 0.52;
           const verticalAlignment = Math.abs(predictedOppY - cpuCy);
 
-          if (!blockedBySolid && verticalAlignment <= params.aimTolerance && Math.random() < params.shootChance) {
+          // Hard, Impossible, and Extreme CPUs can charge up their 3-HP Mega-Laser when blocked or at long range
+          if (params.useCharge && (blockedBySolid || distToOpp > 360) && !incomingThreat && cpu.cooldown <= 0) {
+            cpu.ai.wantCharge = true;
+          }
+
+          if (cpu.ai.wantCharge) {
+            cpu.facing = dxToOpp >= 0 ? 1 : -1;
+            // Release the 3-HP Mega-Laser as soon as fully charged and aligned with opponent
+            if (cpu.chargeTime >= CHARGE_DURATION && !blockedBySolid && verticalAlignment <= params.aimTolerance + 6) {
+              cpu.ai.wantCharge = false;
+              cpu.ai.wantShoot = false;
+            }
+          } else if (!blockedBySolid && verticalAlignment <= params.aimTolerance && Math.random() < params.shootChance) {
             cpu.facing = dxToOpp >= 0 ? 1 : -1;
             cpu.ai.wantShoot = true;
           }
@@ -1358,7 +1484,6 @@
           const hop = cpu.ai.navGoal;
           hop.hopTimer += dt;
 
-          // Check if we successfully landed on or above the target platform
           const onTargetPlatform = cpu.onGround &&
             Math.abs(cpuBottom - hop.targetNode.y) <= 14 &&
             cpuCx >= hop.targetNode.x1 - 8 &&
@@ -1367,19 +1492,16 @@
           if (onTargetPlatform || hop.hopTimer > 1.75) {
             cpu.ai.navGoal = null;
           } else if (hop.isDrop) {
-            // Dropping down to a lower platform
             const steerX = hop.landX - cpuCx;
             cpu.ai.moveDir = Math.abs(steerX) > 10 ? Math.sign(steerX) : 0;
             if (cpu.onGround && cpu.y < 350) {
               cpu.ai.wantDrop = true;
             }
           } else if (!hop.jumping) {
-            // Phase A: Walk to the optimal takeoff X on the current platform
             const distToTakeoff = hop.takeoffX - cpuCx;
             if (Math.abs(distToTakeoff) > 14) {
               cpu.ai.moveDir = Math.sign(distToTakeoff);
             } else if (cpu.onGround) {
-              // At takeoff point: launch full held jump toward target platform!
               hop.jumping = true;
               hop.hopTimer = 0;
               if (!hop.viaPad) {
@@ -1390,7 +1512,6 @@
               cpu.ai.moveDir = Math.abs(airDiff) > 6 ? Math.sign(airDiff) : 0;
             }
           } else {
-            // Phase B: Airborne toward target platform — keep holding jump until feet clear target Y, and steer onto landX!
             if (cpuBottom > hop.targetNode.y - 6 && cpu.vy < 140) {
               cpu.ai.holdJumpTimer = Math.max(cpu.ai.holdJumpTimer, 0.08);
             }
@@ -1401,7 +1522,6 @@
               cpu.ai.moveDir = 0;
             }
             if (cpu.onGround && hop.hopTimer > 0.25) {
-              // Landed early (e.g. clipped edge or ground), allow replanning
               cpu.ai.navGoal = null;
             }
           }
@@ -1410,7 +1530,6 @@
         // 3. Frame-Level Proactive Obstacle Lookahead & Stuck Auto-Vault
         const activeDir = cpu.ai.vaultTimer > 0 ? cpu.ai.vaultDir : cpu.ai.moveDir;
 
-        // Stuck detection: if trying to move horizontally on ground and barely displaced
         if (activeDir !== 0 && cpu.onGround) {
           if (Math.abs(cpu.x - cpu.ai.lastX) < 0.65) {
             cpu.ai.stuckTimer += dt;
@@ -1429,7 +1548,7 @@
 
           let obstacleAhead = false;
           for (const s of arena.solids) {
-            if (s.y >= 400) continue; // Ignore main floor
+            if (s.y >= 400) continue;
             const horizontalDist = activeDir > 0 ? (s.x - frontEdge) : (frontEdge - (s.x + s.w));
             const inFront = horizontalDist >= -10 && horizontalDist <= lookDist;
             const blocksHeight = cpuBottom > s.y + 3 && cpu.y < s.y + s.h;
@@ -1439,7 +1558,6 @@
             }
           }
 
-          // Trigger early proactive jump before hitting block, or immediate auto-vault if stuck
           const isStuck = cpu.ai.stuckTimer >= (diff === 'Easy' ? 0.14 : 0.06);
           if ((obstacleAhead || isStuck) && cpu.onGround) {
             if (isStuck || Math.random() < params.vaultChance) {
@@ -1451,7 +1569,6 @@
             }
           }
 
-          // While airborne during a vault, keep holding jump until feet cleanly clear the block's top surface
           if (!cpu.onGround && cpu.ai.vaultTimer > 0) {
             for (const s of arena.solids) {
               if (s.y >= 400) continue;
@@ -1463,95 +1580,68 @@
           }
         }
 
-        // Apply AI decisions to virtual P2 controller
+        // Apply AI decisions to virtual P2 controller (supporting single-press shots & 3s charge-release)
         const finalMoveDir = cpu.ai.vaultTimer > 0 ? cpu.ai.vaultDir : cpu.ai.moveDir;
         const holdingJump = cpu.ai.wantJump || cpu.ai.holdJumpTimer > 0;
-
         const ctrl = inputs.p2;
+        const prevShoot = ctrl.shoot;
+        const nextShoot = cpu.ai.wantCharge || cpu.ai.wantShoot;
+
         ctrl.left = finalMoveDir < 0;
         ctrl.right = finalMoveDir > 0;
         ctrl.down = cpu.ai.wantDrop;
         ctrl.jump = holdingJump;
         ctrl.jumpPressed = cpu.ai.wantJump;
-        ctrl.shoot = cpu.ai.wantShoot;
-        ctrl.shootPressed = cpu.ai.wantShoot;
+        ctrl.shoot = nextShoot;
+        ctrl.shootPressed = nextShoot && !prevShoot;
+        ctrl.shootReleased = !nextShoot && prevShoot;
 
-        // Face opponent when aligned to shoot and not mid-vault/mid-hop
-        if (Math.abs(dyToOpp) < 45 && !incomingThreat && cpu.ai.vaultTimer <= 0.12 && !cpu.ai.navGoal) {
+        if (Math.abs(dyToOpp) < 48 && !incomingThreat && cpu.ai.vaultTimer <= 0.12 && !cpu.ai.navGoal) {
           cpu.facing = dxToOpp >= 0 ? 1 : -1;
         }
 
         cpu.ai.wantJump = false;
         cpu.ai.wantDrop = false;
+        cpu.ai.wantShoot = false;
       }
 
       // =========================================================================
       // 6. PHYSICS, COLLISIONS & COMBAT
       // =========================================================================
-      function rectsOverlap(a, b) {
-        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-      }
-
-      function spawnParticles(x, y, color, count = 12, speed = 180) {
-        for (let i = 0; i < count; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const spd = (0.25 + Math.random() * 0.75) * speed;
-          particles.push({
-            x,
-            y,
-            vx: Math.cos(angle) * spd,
-            vy: Math.sin(angle) * spd - 30,
-            size: Math.random() < 0.5 ? 2 : 3,
-            color,
-            life: 0.25 + Math.random() * 0.32,
-            maxLife: 0.57
-          });
-        }
-      }
-
-      function spawnFloatingText(x, y, text, color = '#ffffff') {
-        floatingTexts.push({
-          x,
-          y,
-          text,
-          color,
-          life: 0.85
-        });
-      }
-
-      function triggerShake(intensity = 5, duration = 0.16) {
-        matchState.shakeIntensity = Math.max(matchState.shakeIntensity, intensity);
-        matchState.shakeTimer = Math.max(matchState.shakeTimer, duration);
-      }
-
-      function fireLaser(player) {
-        if (!player.alive || player.cooldown > 0) return;
+      function fireLaser(player, isCharged = false) {
+        if (!player.alive) return;
+        if (!isCharged && player.cooldown > 0) return;
 
         const isRapid = player.rapidTimer > 0;
         const isTriple = player.tripleTimer > 0;
+        const effectiveReload = player.reloadMultiplier * (isRapid ? 2.2 : 1.0);
 
-        player.cooldown = isRapid ? BASE_COOLDOWN * 0.48 : BASE_COOLDOWN;
-        player.recoilTimer = 0.10;
-        player.muzzleTimer = 0.06;
+        player.cooldown = BASE_COOLDOWN / effectiveReload;
+        player.recoilTimer = isCharged ? 0.18 : 0.10;
+        player.muzzleTimer = isCharged ? 0.12 : 0.06;
 
-        // Slight horizontal recoil kick
-        player.vx -= player.facing * 42;
+        // Horizontal recoil kick
+        player.vx -= player.facing * (isCharged ? 95 : 38);
 
-        const muzzleX = player.facing === 1 ? player.x + player.w + 4 : player.x - 14;
-        const muzzleY = player.y + 15;
-        const color = player.id === 1 ? '#00f3ff' : '#ff2a85';
+        const muzzleX = player.facing === 1 ? player.x + player.w + 4 : player.x - (isCharged ? 24 : 14);
+        const muzzleY = isCharged ? player.y + 10 : player.y + 15;
+        const color = isCharged ? '#ffd700' : (player.id === 1 ? '#00f3ff' : '#ff2a85');
         const coreColor = '#ffffff';
 
-        const angles = isTriple ? [-0.11, 0, 0.11] : [0];
+        const angles = isCharged ? [0] : (isTriple ? [-0.11, 0, 0.11] : [0]);
+        const speed = isCharged ? CHARGED_LASER_SPEED : LASER_SPEED;
+
         angles.forEach(ang => {
           lasers.push({
             ownerId: player.id,
             x: muzzleX,
             y: muzzleY,
-            w: 14,
-            h: 4,
-            vx: Math.cos(ang) * LASER_SPEED * player.facing,
-            vy: Math.sin(ang) * LASER_SPEED,
+            w: isCharged ? 26 : 14,
+            h: isCharged ? 12 : 4,
+            vx: Math.cos(ang) * speed * player.facing,
+            vy: Math.sin(ang) * speed,
+            damage: isCharged ? 3 : 1,
+            isCharged,
             color,
             coreColor,
             trail: []
@@ -1561,8 +1651,15 @@
         if (player.id === 1) matchState.stats.p1.shots += angles.length;
         else matchState.stats.p2.shots += angles.length;
 
-        spawnParticles(muzzleX + (player.facing === 1 ? 4 : 8), muzzleY + 2, color, 5, 95);
-        audio.laser(isRapid ? 1.22 : 1.0);
+        if (isCharged) {
+          triggerShake(6, 0.16);
+          spawnParticles(muzzleX + (player.facing === 1 ? 6 : 16), muzzleY + 6, '#ffd700', 18, 175);
+          spawnFloatingText(player.x + player.w * 0.5, player.y - 14, 'MEGA BLAST!', '#ffd700');
+          audio.chargedLaser();
+        } else {
+          spawnParticles(muzzleX + (player.facing === 1 ? 4 : 8), muzzleY + 2, color, 5, 95);
+          audio.laser(isRapid ? 1.25 : 1.0);
+        }
       }
 
       function updatePlayer(player, ctrl, dt) {
@@ -1580,21 +1677,22 @@
         player.tripleTimer = Math.max(0, player.tripleTimer - dt);
         player.jetpackTimer = Math.max(0, player.jetpackTimer - dt);
 
+        // Generous Coyote Time & Jump Input Buffering for easier, responsive player jumping
         if (player.onGround) {
-          player.coyoteTimer = 0.09;
+          player.coyoteTimer = 0.15;
         } else {
           player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
         }
 
         if (ctrl.jumpPressed) {
-          player.jumpBufferTimer = 0.10;
+          player.jumpBufferTimer = 0.15;
         } else {
           player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
         }
 
         // Drop through one-way platforms
         if (ctrl.down && player.onGround) {
-          player.dropThroughTimer = 0.18;
+          player.dropThroughTimer = 0.20;
           player.onGround = false;
           player.y += 2;
         }
@@ -1610,27 +1708,27 @@
           player.facing = 1;
         }
 
-        const accel = player.onGround ? 2400 : 1850;
+        const accel = player.onGround ? 2550 : 2050;
         if (player.vx < targetVx) {
           player.vx = Math.min(targetVx, player.vx + accel * dt);
         } else if (player.vx > targetVx) {
           player.vx = Math.max(targetVx, player.vx - accel * dt);
         }
 
-        // Jump execution (with coyote time & jump buffer)
+        // Jump execution (with generous coyote time & jump buffer)
         if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
           player.vy = JUMP_VELOCITY;
           player.onGround = false;
           player.coyoteTimer = 0;
           player.jumpBufferTimer = 0;
-          player.jetpackTimer = 0.22;
+          player.jetpackTimer = 0.25;
           const sparkColor = player.id === 1 ? '#00f3ff' : '#ff2a85';
           spawnParticles(player.x + player.w * 0.5, player.y + player.h, sparkColor, 8, 95);
           audio.jump();
         }
 
         // Jetpack booster trail sparks while ascending
-        if (!player.onGround && player.vy < -120 && Math.random() < 0.45) {
+        if (!player.onGround && player.vy < -110 && Math.random() < 0.45) {
           const jetX = player.facing === 1 ? player.x + 3 : player.x + player.w - 5;
           particles.push({
             x: jetX,
@@ -1644,13 +1742,14 @@
           });
         }
 
-        // Variable jump height (release jump early to hop lower)
-        if (!ctrl.jump && player.vy < -180) {
-          player.vy += GRAVITY * 1.45 * dt;
+        // Gentle variable jump height + hang-time near jump apex for easy platform landings
+        if (!ctrl.jump && player.vy < -230) {
+          player.vy += GRAVITY * 0.95 * dt;
         }
+        const apexGravityScale = Math.abs(player.vy) < 95 ? 0.72 : 1.0;
 
         // Apply Gravity
-        player.vy = Math.min(920, player.vy + GRAVITY * dt);
+        player.vy = Math.min(920, player.vy + GRAVITY * apexGravityScale * dt);
 
         // Move X & resolve solid wall collisions
         player.x += player.vx * dt;
@@ -1696,7 +1795,7 @@
         if (player.vy >= 0 && player.dropThroughTimer <= 0) {
           for (const p of arena.platforms) {
             const withinX = player.x + player.w > p.x + 2 && player.x < p.x + p.w - 2;
-            const crossedTop = prevBottom <= p.y + 6 && player.y + player.h >= p.y;
+            const crossedTop = prevBottom <= p.y + 8 && player.y + player.h >= p.y;
             if (withinX && crossedTop) {
               player.y = p.y - player.h;
               player.vy = 0;
@@ -1725,9 +1824,37 @@
           }
         }
 
-        // Shoot weapon
-        if (ctrl.shoot || ctrl.shootPressed) {
-          fireLaser(player);
+        // Weapon Firing & 3-Second Charge Logic (Rapid Fire enables rapid shots while still charging 3s Mega-Laser)
+        if (ctrl.shootPressed) {
+          if (player.cooldown <= 0) {
+            fireLaser(player, false);
+          }
+          player.chargeTime = 0;
+          player.chargeReadyPlayed = false;
+        } else if (ctrl.shoot) {
+          // Always charges regularly over 3.0 seconds
+          player.chargeTime = Math.min(CHARGE_DURATION, player.chargeTime + dt);
+          if (player.chargeTime >= CHARGE_DURATION && !player.chargeReadyPlayed) {
+            player.chargeReadyPlayed = true;
+            const barrelX = player.facing === 1 ? player.x + player.w + 8 : player.x - 8;
+            spawnParticles(barrelX, player.y + 16, '#ffd700', 14, 130);
+            audio.chargeReady();
+          }
+
+          // When Rapid Fire power-up is active, continue firing rapid shots while holding Shoot (until full 3s charge is ready)
+          if (player.rapidTimer > 0 && player.cooldown <= 0 && player.chargeTime < CHARGE_DURATION) {
+            fireLaser(player, false);
+          }
+        } else if (ctrl.shootReleased) {
+          // Releasing shoot after 3.0 seconds unleashes the 3-HP Mega-Laser!
+          if (player.chargeTime >= CHARGE_DURATION) {
+            fireLaser(player, true);
+          }
+          player.chargeTime = 0;
+          player.chargeReadyPlayed = false;
+        } else {
+          player.chargeTime = 0;
+          player.chargeReadyPlayed = false;
         }
 
         // Advance walk animation timer
@@ -1755,38 +1882,46 @@
       function handleLaserHit(laser, target) {
         const attacker = players.find(p => p.id === laser.ownerId);
         if (attacker) {
-          if (attacker.id === 1) matchState.stats.p1.hits++;
-          else matchState.stats.p2.hits++;
+          if (attacker.id === 1) {
+            matchState.stats.p1.hits++;
+            if (laser.isCharged) matchState.stats.p1.chargedHits++;
+          } else {
+            matchState.stats.p2.hits++;
+            if (laser.isCharged) matchState.stats.p2.chargedHits++;
+          }
         }
 
-        // Check Energy Shield first
+        const dmg = laser.damage || 1;
+
+        // Check Energy Shield first (absorbs 1 standard hit, or reduces a 3-HP charged blast by 1)
         if (target.hasShield) {
           target.hasShield = false;
           target.hurtTimer = 0.25;
-          target.vx += Math.sign(laser.vx) * 140;
+          target.vx += Math.sign(laser.vx) * 155;
           spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#2ce8a2', 18, 200);
-          spawnFloatingText(target.x + target.w * 0.5, target.y - 12, 'BLOCKED!', '#2ce8a2');
+          spawnFloatingText(target.x + target.w * 0.5, target.y - 12, 'SHIELD BROKEN!', '#2ce8a2');
           triggerShake(4, 0.12);
           audio.shieldBlock();
-          return;
+          if (dmg <= 1) return;
         }
 
-        target.hp = Math.max(0, target.hp - 1);
+        const appliedDmg = target.hasShield ? dmg - 1 : dmg;
+        target.hp = Math.max(0, target.hp - appliedDmg);
         target.hurtTimer = 0.35;
-        target.vx += Math.sign(laser.vx) * 175;
-        target.vy = -140;
+        target.vx += Math.sign(laser.vx) * (laser.isCharged ? 270 : 175);
+        target.vy = laser.isCharged ? -210 : -140;
 
         const targetColor = target.id === 1 ? '#00f3ff' : '#ff2a85';
-        spawnParticles(laser.x, laser.y, targetColor, 16, 210);
-        spawnFloatingText(target.x + target.w * 0.5, target.y - 10, '-1 HP', '#ffd700');
+        spawnParticles(laser.x, laser.y, laser.isCharged ? '#ffd700' : targetColor, laser.isCharged ? 28 : 16, 230);
+        spawnFloatingText(target.x + target.w * 0.5, target.y - 10, `-${appliedDmg} HP`, '#ffd700');
 
         if (target.hp <= 0) {
           // Round KO!
           target.alive = false;
-          matchState.hitStopTimer = 0.13; // Dramatic freeze-frame on lethal laser
-          triggerShake(11, 0.35);
-          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, targetColor, 42, 290);
-          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#ffffff', 20, 220);
+          matchState.hitStopTimer = laser.isCharged ? 0.17 : 0.13; // Dramatic freeze-frame on lethal laser
+          triggerShake(laser.isCharged ? 15 : 11, 0.38);
+          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, targetColor, 44, 300);
+          spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#ffffff', 22, 230);
           audio.ko();
 
           const winner = players.find(p => p.id !== target.id);
@@ -1980,8 +2115,10 @@
         // Clear edge-triggered input flags
         inputs.p1.jumpPressed = false;
         inputs.p1.shootPressed = false;
+        inputs.p1.shootReleased = false;
         inputs.p2.jumpPressed = false;
         inputs.p2.shootPressed = false;
+        inputs.p2.shootReleased = false;
       }
 
       // =========================================================================
@@ -2184,7 +2321,22 @@
           }
         }
 
-        // Overhead Mini HP Pips & Cooldown Bar
+        // Visual 3-Second Charge Orb at Blaster Muzzle
+        if (p.chargeTime > 0.15) {
+          const pct = Math.min(1, p.chargeTime / CHARGE_DURATION);
+          const isReady = pct >= 1;
+          const orbX = p.facing === 1 ? x + p.w + 7 : x - 7;
+          const orbY = gunY + 2;
+          const radius = Math.round(2 + pct * 6 + (isReady ? Math.sin(performance.now() * 0.04) * 2 : 0));
+
+          ctx.fillStyle = isReady ? '#ffd700' : primary;
+          ctx.fillRect(orbX - radius, orbY - radius, radius * 2, radius * 2);
+          ctx.fillStyle = '#ffffff';
+          const coreR = Math.max(1, Math.floor(radius * 0.5));
+          ctx.fillRect(orbX - coreR, orbY - coreR, coreR * 2, coreR * 2);
+        }
+
+        // Overhead Mini HP Pips & Charge / Cooldown Bar
         const barW = 24;
         const pipW = Math.floor((barW - (p.maxHp - 1) * 2) / p.maxHp);
         for (let i = 0; i < p.maxHp; i++) {
@@ -2192,8 +2344,15 @@
           ctx.fillRect(x + i * (pipW + 2), y - 10, pipW, 3);
         }
 
-        if (p.cooldown > 0.03) {
-          const maxCd = p.rapidTimer > 0 ? BASE_COOLDOWN * 0.48 : BASE_COOLDOWN;
+        if (p.chargeTime > 0.05) {
+          const chargePct = Math.min(1, p.chargeTime / CHARGE_DURATION);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+          ctx.fillRect(x - 2, y - 6, barW + 4, 4);
+          ctx.fillStyle = chargePct >= 1 ? '#ffd700' : '#2ce8a2';
+          ctx.fillRect(x - 1, y - 5, Math.round((barW + 2) * chargePct), 2);
+        } else if (p.cooldown > 0.03) {
+          const effectiveReload = p.reloadMultiplier * (p.rapidTimer > 0 ? 2.2 : 1.0);
+          const maxCd = BASE_COOLDOWN / effectiveReload;
           const pct = Math.max(0, 1 - p.cooldown / maxCd);
           ctx.fillStyle = 'rgba(255,255,255,0.2)';
           ctx.fillRect(x, y - 5, barW, 2);
@@ -2206,16 +2365,21 @@
         for (const l of lasers) {
           for (let i = 0; i < l.trail.length; i++) {
             const t = l.trail[i];
-            const alpha = ((i + 1) / (l.trail.length + 1)) * 0.45;
+            const alpha = ((i + 1) / (l.trail.length + 1)) * (l.isCharged ? 0.65 : 0.45);
             ctx.fillStyle = l.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
             ctx.fillRect(Math.round(t.x), Math.round(t.y), l.w, l.h);
+          }
+
+          if (l.isCharged) {
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
+            ctx.fillRect(Math.round(l.x) - 4, Math.round(l.y) - 4, l.w + 8, l.h + 8);
           }
 
           ctx.fillStyle = l.color;
           ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y) - 1, l.w + 2, l.h + 2);
 
           ctx.fillStyle = l.coreColor;
-          ctx.fillRect(Math.round(l.x) + 2, Math.round(l.y) + 1, l.w - 4, l.h - 2);
+          ctx.fillRect(Math.round(l.x) + 2, Math.round(l.y) + (l.isCharged ? 3 : 1), l.w - 4, l.h - (l.isCharged ? 6 : 2));
         }
       }
 
@@ -2442,8 +2606,24 @@
       });
 
       window.addEventListener('keyup', (e) => {
+        const wasDown = keysDown.has(e.code);
         keysDown.delete(e.code);
         syncKeyboardInputs();
+
+        if (wasDown) {
+          if (settings.mode === '1vCPU') {
+            if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyJ' || e.code === 'KeyZ') {
+              inputs.p1.shootReleased = true;
+            }
+          } else {
+            if (e.code === 'Space' || e.code === 'KeyF' || e.code === 'KeyG') {
+              inputs.p1.shootReleased = true;
+            }
+            if (e.code === 'Enter' || e.code === 'KeyM' || e.code === 'Numpad0' || e.code === 'Slash') {
+              inputs.p2.shootReleased = true;
+            }
+          }
+        }
       });
 
       window.addEventListener('blur', () => {
@@ -2549,6 +2729,9 @@
           if (activeActions[pKey].shoot && !inputs[pKey].shoot) {
             inputs[pKey].shootPressed = true;
           }
+          if (!activeActions[pKey].shoot && inputs[pKey].shoot) {
+            inputs[pKey].shootReleased = true;
+          }
           inputs[pKey].left = activeActions[pKey].left;
           inputs[pKey].right = activeActions[pKey].right;
           inputs[pKey].jump = activeActions[pKey].jump;
@@ -2573,13 +2756,13 @@
       function updateControlsLegend() {
         if (settings.mode === '1vCPU') {
           controlsLegendBox.innerHTML = `
-            <div><strong class="p1">PLAYER 1 (KEYBOARD):</strong> Move with <strong>A / D</strong> or <strong>LEFT / RIGHT ARROWS</strong>. Jump with <strong>W</strong> or <strong>UP ARROW</strong>. Drop down with <strong>S / DOWN</strong>. Shoot with <strong>SPACE</strong> or <strong>ENTER</strong>.</div>
-            <div style="margin-top:6px;"><strong class="p2">MOBILE / TOUCH:</strong> On-screen arcade buttons activate automatically on touchscreens (or toggle via <strong>TOUCH</strong> in top-right).</div>
+            <div><strong class="p1">PLAYER 1 (KEYBOARD):</strong> Move with <strong>A / D</strong> or <strong>LEFT / RIGHT</strong>. Jump with <strong>W</strong> or <strong>UP</strong>. Drop down with <strong>S / DOWN</strong>. Tap <strong>SPACE / ENTER</strong> to shoot (1 HP), or <strong>HOLD 3 SECONDS</strong> to unleash a <strong>3 HP CHARGED MEGA-LASER</strong>!</div>
+            <div style="margin-top:6px;"><strong class="p2">MOBILE / TOUCH:</strong> On-screen arcade buttons activate automatically on touchscreens (or toggle via <strong>TOUCH</strong> in top-right). Hold <strong>FIRE</strong> for 3s to charge!</div>
           `;
         } else {
           controlsLegendBox.innerHTML = `
-            <div><strong class="p1">PLAYER 1 (CYAN):</strong> <strong>A / D</strong> Move &bull; <strong>W</strong> Jump &bull; <strong>S</strong> Drop &bull; <strong>SPACE</strong> Laser</div>
-            <div style="margin-top:6px;"><strong class="p2">PLAYER 2 (MAGENTA):</strong> <strong>LEFT / RIGHT</strong> Move &bull; <strong>UP</strong> Jump &bull; <strong>DOWN</strong> Drop &bull; <strong>ENTER / M</strong> Laser</div>
+            <div><strong class="p1">PLAYER 1 (CYAN):</strong> <strong>A / D</strong> Move &bull; <strong>W</strong> Jump &bull; <strong>S</strong> Drop &bull; Tap <strong>SPACE</strong> Shoot / Hold 3s Charged Shot (3 HP)</div>
+            <div style="margin-top:6px;"><strong class="p2">PLAYER 2 (MAGENTA):</strong> <strong>LEFT / RIGHT</strong> Move &bull; <strong>UP</strong> Jump &bull; <strong>DOWN</strong> Drop &bull; Tap <strong>ENTER / M</strong> Shoot / Hold 3s Charged Shot (3 HP)</div>
           `;
         }
       }
@@ -2633,14 +2816,14 @@
             <div style="color:#00f3ff;margin-bottom:6px;">PLAYER 1</div>
             <div>ROUNDS WON: ${p1.wins}</div>
             <div>SHOTS FIRED: ${p1.shots}</div>
-            <div>LASER HITS: ${p1.hits}</div>
+            <div>LASER HITS: ${p1.hits} (${p1.chargedHits} MEGA)</div>
             <div>ACCURACY: ${p1Acc}%</div>
           </div>
           <div class="stat-box p2-box">
             <div style="color:#ff2a85;margin-bottom:6px;">${p2Label}</div>
             <div>ROUNDS WON: ${p2.wins}</div>
             <div>SHOTS FIRED: ${p2.shots}</div>
-            <div>LASER HITS: ${p2.hits}</div>
+            <div>LASER HITS: ${p2.hits} (${p2.chargedHits} MEGA)</div>
             <div>ACCURACY: ${p2Acc}%</div>
           </div>
         `;
