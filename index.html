@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <!-- PeerJS enables instant room-code 1v1 multiplayer directly on GitHub Pages -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <style>
     :root {
       --bg-dark: #090a14;
@@ -663,15 +665,43 @@
 
       const onlineState = {
         active: false,
+        transport: null,   // 'firestore' | 'peerjs'
         role: null,        // 'host' (Player 1) | 'guest' (Player 2)
         roomCode: null,
         opponentName: 'PLAYER 2',
         opponentConnected: false,
         unsubRoom: null,
+        peer: null,
+        conn: null,
         syncTimer: 0,
         lastAppliedEventId: 0,
         eventCounter: 0
       };
+
+      function getOrCreateLocalAccount() {
+        const key = 'pixel_laser_github_profile_v1';
+        try {
+          const saved = JSON.parse(window.name || '{}');
+          if (saved && saved.uid) return saved;
+        } catch (e) {}
+        const randId = 'GH-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        const fresh = { uid: randId, callsign: `PILOT-${randId.slice(-4)}`, wins: 0, losses: 0 };
+        try {
+          window.name = JSON.stringify(fresh);
+        } catch (e) {}
+        return fresh;
+      }
+
+      function persistLocalProfile() {
+        try {
+          window.name = JSON.stringify({
+            uid: accountState.uid,
+            callsign: accountState.callsign,
+            wins: accountState.wins,
+            losses: accountState.losses
+          });
+        } catch (e) {}
+      }
 
       function showMenuFeedback(msg, isGood = false) {
         const el = document.getElementById('menu-feedback-msg');
@@ -688,16 +718,27 @@
 
         if (nameEl) nameEl.textContent = accountState.callsign;
         if (recEl) recEl.textContent = `(${accountState.wins}W - ${accountState.losses}L)`;
-        if (uidEl) uidEl.textContent = accountState.uid ? `ACCOUNT ID: ${accountState.uid}` : 'ACCOUNT ID: OFFLINE';
+        if (uidEl) {
+          uidEl.textContent = accountState.uid
+            ? `ACCOUNT ID: ${accountState.uid} (${db ? 'CLOUD' : 'GITHUB PAGES P2P READY'})`
+            : 'ACCOUNT ID: READY';
+        }
         if (inputEl && !inputEl.value && accountState.callsign !== 'PILOT') {
           inputEl.value = accountState.callsign;
         }
       }
 
       async function initCloudAccount() {
+        const localProf = getOrCreateLocalAccount();
+        accountState.uid = localProf.uid;
+        accountState.callsign = localProf.callsign;
+        accountState.wins = localProf.wins;
+        accountState.losses = localProf.losses;
+        accountState.ready = true;
+        updateAccountUI();
+
         try {
-          if (typeof __firebase_config === 'undefined') {
-            updateAccountUI();
+          if (typeof __firebase_config === 'undefined' || !__firebase_config) {
             return;
           }
           const firebaseConfig = JSON.parse(__firebase_config);
@@ -736,7 +777,7 @@
           accountState.ready = true;
           updateAccountUI();
         } catch (err) {
-          console.warn('Cloud account initialization skipped:', err);
+          console.warn('Running in standalone GitHub Pages mode:', err);
           updateAccountUI();
         }
       }
@@ -748,6 +789,7 @@
           return;
         }
         accountState.callsign = cleaned;
+        persistLocalProfile();
         updateAccountUI();
         showMenuFeedback(`SAVED ACCOUNT CALLSIGN: ${cleaned}`, true);
 
@@ -768,6 +810,7 @@
       async function recordOnlineMatchOutcome(didWin) {
         if (didWin) accountState.wins++;
         else accountState.losses++;
+        persistLocalProfile();
         updateAccountUI();
 
         if (!currentUser || !db) return;
@@ -798,7 +841,16 @@
           onlineState.unsubRoom();
           onlineState.unsubRoom = null;
         }
+        if (onlineState.conn) {
+          try { onlineState.conn.close(); } catch (e) {}
+          onlineState.conn = null;
+        }
+        if (onlineState.peer) {
+          try { onlineState.peer.destroy(); } catch (e) {}
+          onlineState.peer = null;
+        }
         onlineState.active = false;
+        onlineState.transport = null;
         onlineState.role = null;
         onlineState.roomCode = null;
         onlineState.opponentConnected = false;
@@ -807,11 +859,38 @@
         if (hostedPanel) hostedPanel.style.display = 'none';
       }
 
-      async function createOnlineRoom() {
-        if (!currentUser || !db) {
-          showMenuFeedback('ONLINE ACCOUNT STILL CONNECTING...');
-          return;
+      function handlePeerMessage(msg) {
+        if (!msg || typeof msg !== 'object') return;
+        const statusEl = document.getElementById('online-status-text');
+
+        if (msg.type === 'HELLO_GUEST' && onlineState.role === 'host') {
+          onlineState.opponentConnected = true;
+          onlineState.opponentName = msg.callsign || 'PLAYER 2';
+          if (statusEl) {
+            statusEl.style.color = '#2ce8a2';
+            statusEl.textContent = `${onlineState.opponentName} JOINED! LAUNCHING MATCH...`;
+          }
+          startOnlineMatchAsHost({});
+        } else if (msg.type === 'START_MATCH' && onlineState.role === 'guest') {
+          onlineState.opponentName = msg.hostName || 'HOST';
+          settings.powerupsEnabled = msg.powerupsEnabled !== false;
+          settings.maxHp = msg.maxHp || 3;
+          matchState.arenaIndex = msg.arenaIndex || 0;
+          matchState.roundNumber = msg.roundNumber || 1;
+          startNewMatch(true);
+        } else if (msg.type === 'PLAYER_STATE') {
+          const targetIdx = onlineState.role === 'host' ? 1 : 0;
+          if (players[targetIdx] && matchState.phase !== 'MENU') {
+            applyRemotePlayerState(players[targetIdx], msg.state);
+          }
+        } else if (msg.type === 'SHOT') {
+          spawnRemoteLaser(msg.shot);
+        } else if (msg.type === 'ROUND_EVENT' && onlineState.role === 'guest') {
+          handleRemoteRoundEvent(msg.event);
         }
+      }
+
+      async function createOnlineRoom() {
         leaveOnlineRoom();
 
         const code = generateRoomCode();
@@ -822,54 +901,89 @@
         statusEl.style.color = '#ffd700';
         statusEl.textContent = 'CREATING ROOM...';
 
-        try {
-          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-          await setDoc(roomRef, {
-            code,
-            status: 'waiting',
-            hostUid: currentUser.uid,
-            hostName: accountState.callsign,
-            guestUid: null,
-            guestName: null,
-            arenaChoice: settings.arenaChoice,
-            powerupsEnabled: settings.powerupsEnabled,
-            maxHp: settings.maxHp,
-            roundNumber: 1,
-            arenaIndex: 0,
-            p1Wins: 0,
-            p2Wins: 0,
-            hostState: null,
-            guestState: null,
-            hostShot: null,
-            guestShot: null,
-            roundEvent: null,
-            updatedAt: serverTimestamp()
-          });
+        // Use Firestore if available, otherwise PeerJS WebRTC (works natively on GitHub Pages!)
+        if (currentUser && db) {
+          try {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+            await setDoc(roomRef, {
+              code,
+              status: 'waiting',
+              hostUid: currentUser.uid,
+              hostName: accountState.callsign,
+              guestUid: null,
+              guestName: null,
+              arenaChoice: settings.arenaChoice,
+              powerupsEnabled: settings.powerupsEnabled,
+              maxHp: settings.maxHp,
+              roundNumber: 1,
+              arenaIndex: 0,
+              p1Wins: 0,
+              p2Wins: 0,
+              hostState: null,
+              guestState: null,
+              hostShot: null,
+              guestShot: null,
+              roundEvent: null,
+              updatedAt: serverTimestamp()
+            });
 
-          onlineState.active = true;
-          onlineState.role = 'host';
-          onlineState.roomCode = code;
-          onlineState.opponentConnected = false;
+            onlineState.active = true;
+            onlineState.transport = 'firestore';
+            onlineState.role = 'host';
+            onlineState.roomCode = code;
+            onlineState.opponentConnected = false;
 
+            codeTextEl.textContent = code;
+            hostedPanel.style.display = 'block';
+            statusEl.style.color = '#2ce8a2';
+            statusEl.textContent = `ROOM ${code} READY! WAITING FOR FRIEND TO JOIN...`;
+            showMenuFeedback('');
+
+            subscribeToRoom(code);
+            return;
+          } catch (err) {
+            console.warn('Firestore fallback to PeerJS:', err);
+          }
+        }
+
+        if (typeof window.Peer === 'undefined') {
+          statusEl.style.color = '#ff2a85';
+          statusEl.textContent = 'NETWORK LIBRARY LOADING... TRY AGAIN IN 1 SECOND.';
+          return;
+        }
+
+        const peerId = `pixellaser-room-${code}`;
+        const peer = new window.Peer(peerId);
+        onlineState.peer = peer;
+        onlineState.active = true;
+        onlineState.transport = 'peerjs';
+        onlineState.role = 'host';
+        onlineState.roomCode = code;
+
+        peer.on('open', () => {
           codeTextEl.textContent = code;
           hostedPanel.style.display = 'block';
           statusEl.style.color = '#2ce8a2';
-          statusEl.textContent = `ROOM ${code} READY! WAITING FOR FRIEND TO JOIN...`;
+          statusEl.textContent = `ROOM ${code} LIVE! SHARE CODE WITH PLAYER 2...`;
           showMenuFeedback('');
+        });
 
-          subscribeToRoom(code);
-        } catch (err) {
-          console.error('Create room error:', err);
+        peer.on('connection', (conn) => {
+          onlineState.conn = conn;
+          conn.on('data', handlePeerMessage);
+          conn.on('close', () => {
+            showMenuFeedback('OPPONENT DISCONNECTED');
+          });
+        });
+
+        peer.on('error', (err) => {
+          console.error('Peer host error:', err);
           statusEl.style.color = '#ff2a85';
-          statusEl.textContent = 'FAILED TO CREATE ROOM. TRY AGAIN.';
-        }
+          statusEl.textContent = 'CONNECTION ERROR. CLICK CREATE CODE AGAIN.';
+        });
       }
 
       async function joinOnlineRoom(rawCode) {
-        if (!currentUser || !db) {
-          showMenuFeedback('ONLINE ACCOUNT STILL CONNECTING...');
-          return;
-        }
         const code = (rawCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
         if (code.length < 4) {
           showMenuFeedback('ENTER A VALID ROOM CODE');
@@ -881,121 +995,112 @@
         statusEl.style.color = '#ffd700';
         statusEl.textContent = `JOINING ROOM ${code}...`;
 
-        try {
-          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-          const snap = await getDoc(roomRef);
-          if (!snap.exists()) {
-            statusEl.style.color = '#ff2a85';
-            statusEl.textContent = `ROOM "${code}" NOT FOUND! CHECK THE CODE.`;
-            return;
-          }
-
-          const data = snap.data();
-          if (data.guestUid && data.guestUid !== currentUser.uid) {
-            statusEl.style.color = '#ff2a85';
-            statusEl.textContent = 'ROOM IS ALREADY FULL!';
-            return;
-          }
-
-          await updateDoc(roomRef, {
-            status: 'joined',
-            guestUid: currentUser.uid,
-            guestName: accountState.callsign,
-            updatedAt: serverTimestamp()
-          });
-
-          onlineState.active = true;
-          onlineState.role = 'guest';
-          onlineState.roomCode = code;
-          onlineState.opponentName = data.hostName || 'HOST';
-          onlineState.opponentConnected = true;
-
-          // Match host room rules
-          settings.powerupsEnabled = data.powerupsEnabled !== false;
-          settings.maxHp = data.maxHp || 3;
-
-          statusEl.style.color = '#2ce8a2';
-          statusEl.textContent = `CONNECTED TO ${onlineState.opponentName}! STARTING MATCH...`;
-          showMenuFeedback('');
-
-          subscribeToRoom(code);
-        } catch (err) {
-          console.error('Join room error:', err);
-          statusEl.style.color = '#ff2a85';
-          statusEl.textContent = 'COULD NOT JOIN ROOM. TRY AGAIN.';
-        }
-      }
-
-      function subscribeToRoom(code) {
-        if (!db) return;
-        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-
-        onlineState.unsubRoom = onSnapshot(roomRef, (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          const statusEl = document.getElementById('online-status-text');
-
-          if (onlineState.role === 'host') {
-            if (data.guestUid && !onlineState.opponentConnected) {
-              onlineState.opponentConnected = true;
-              onlineState.opponentName = data.guestName || 'PLAYER 2';
-              if (statusEl) {
-                statusEl.style.color = '#2ce8a2';
-                statusEl.textContent = `${onlineState.opponentName} JOINED! LAUNCHING MATCH...`;
-              }
-              // Automatically start the online duel when guest connects
-              if (matchState.phase === 'MENU') {
-                startOnlineMatchAsHost(data);
-              }
+        if (currentUser && db) {
+          try {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+            const snap = await getDoc(roomRef);
+            if (!snap.exists()) {
+              statusEl.style.color = '#ff2a85';
+              statusEl.textContent = `ROOM "${code}" NOT FOUND! CHECK THE CODE.`;
+              return;
             }
 
-            // Receive Guest movement/state & shots
-            if (data.guestState && players[1] && matchState.phase !== 'MENU') {
-              applyRemotePlayerState(players[1], data.guestState);
+            const data = snap.data();
+            if (data.guestUid && data.guestUid !== currentUser.uid) {
+              statusEl.style.color = '#ff2a85';
+              statusEl.textContent = 'ROOM IS ALREADY FULL!';
+              return;
             }
-            if (data.guestShot && data.guestShot.id > onlineState.lastAppliedEventId) {
-              onlineState.lastAppliedEventId = data.guestShot.id;
-              spawnRemoteLaser(data.guestShot);
-            }
-          } else if (onlineState.role === 'guest') {
+
+            await updateDoc(roomRef, {
+              status: 'joined',
+              guestUid: currentUser.uid,
+              guestName: accountState.callsign,
+              updatedAt: serverTimestamp()
+            });
+
+            onlineState.active = true;
+            onlineState.transport = 'firestore';
+            onlineState.role = 'guest';
+            onlineState.roomCode = code;
             onlineState.opponentName = data.hostName || 'HOST';
+            onlineState.opponentConnected = true;
+
             settings.powerupsEnabled = data.powerupsEnabled !== false;
             settings.maxHp = data.maxHp || 3;
 
-            // Start or advance rounds driven by host
-            if (data.status === 'playing' && matchState.phase === 'MENU') {
-              matchState.arenaIndex = data.arenaIndex || 0;
-              matchState.roundNumber = data.roundNumber || 1;
-              startNewMatch(true);
-            }
+            statusEl.style.color = '#2ce8a2';
+            statusEl.textContent = `CONNECTED TO ${onlineState.opponentName}! STARTING MATCH...`;
+            showMenuFeedback('');
 
-            // Receive Host movement/state & shots
-            if (data.hostState && players[0] && matchState.phase !== 'MENU') {
-              applyRemotePlayerState(players[0], data.hostState);
-            }
-            if (data.hostShot && data.hostShot.id > onlineState.lastAppliedEventId) {
-              onlineState.lastAppliedEventId = data.hostShot.id;
-              spawnRemoteLaser(data.hostShot);
-            }
-
-            // Sync authoritative round/match outcome from host
-            if (data.roundEvent && data.roundEvent.id !== onlineState.lastRoundEventId) {
-              onlineState.lastRoundEventId = data.roundEvent.id;
-              handleRemoteRoundEvent(data.roundEvent);
-            }
+            subscribeToRoom(code);
+            return;
+          } catch (err) {
+            console.warn('Firestore join fallback to PeerJS:', err);
           }
-        }, (err) => {
-          console.warn('Room sync listener error:', err);
+        }
+
+        if (typeof window.Peer === 'undefined') {
+          statusEl.style.color = '#ff2a85';
+          statusEl.textContent = 'NETWORK LIBRARY LOADING... TRY AGAIN IN 1 SECOND.';
+          return;
+        }
+
+        const peer = new window.Peer();
+        onlineState.peer = peer;
+        onlineState.active = true;
+        onlineState.transport = 'peerjs';
+        onlineState.role = 'guest';
+        onlineState.roomCode = code;
+
+        peer.on('open', () => {
+          const conn = peer.connect(`pixellaser-room-${code}`, { reliable: true });
+          onlineState.conn = conn;
+
+          conn.on('open', () => {
+            onlineState.opponentConnected = true;
+            statusEl.style.color = '#2ce8a2';
+            statusEl.textContent = `CONNECTED TO ROOM ${code}! STARTING...`;
+            showMenuFeedback('');
+            conn.send({ type: 'HELLO_GUEST', callsign: accountState.callsign });
+          });
+
+          conn.on('data', handlePeerMessage);
+          conn.on('close', () => {
+            showMenuFeedback('HOST DISCONNECTED');
+          });
+        });
+
+        peer.on('error', (err) => {
+          console.error('Peer join error:', err);
+          statusEl.style.color = '#ff2a85';
+          statusEl.textContent = `ROOM "${code}" NOT FOUND! CHECK THE CODE.`;
         });
       }
 
       async function startOnlineMatchAsHost(roomData) {
-        if (!db || !onlineState.roomCode) return;
+        if (!onlineState.roomCode) return;
         const startArena = settings.arenaChoice === 'cycle' ? 0 : (parseInt(settings.arenaChoice, 10) || 0);
         matchState.arenaIndex = startArena;
         matchState.roundNumber = 1;
         onlineState.lastRoundEventId = 0;
 
+        if (onlineState.transport === 'peerjs' && onlineState.conn) {
+          try {
+            onlineState.conn.send({
+              type: 'START_MATCH',
+              hostName: accountState.callsign,
+              arenaIndex: startArena,
+              roundNumber: 1,
+              powerupsEnabled: settings.powerupsEnabled,
+              maxHp: settings.maxHp
+            });
+          } catch (e) {}
+          startNewMatch(true);
+          return;
+        }
+
+        if (!db) return;
         try {
           const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
           await updateDoc(roomRef, {
@@ -1083,30 +1188,70 @@
       }
 
       async function pushOnlineState(dt) {
-        if (!onlineState.active || !db || !onlineState.roomCode || !players[0] || !players[1]) return;
+        if (!onlineState.active || !onlineState.roomCode || !players[0] || !players[1]) return;
         onlineState.syncTimer -= dt;
         if (onlineState.syncTimer > 0) return;
-        onlineState.syncTimer = 0.085; // ~12 updates/sec for smooth cross-device sync
+        onlineState.syncTimer = 0.05; // 20 updates/sec for responsive cross-device sync
 
         const me = onlineState.role === 'host' ? players[0] : players[1];
+        const payload = {
+          x: Math.round(me.x * 10) / 10,
+          y: Math.round(me.y * 10) / 10,
+          vx: Math.round(me.vx),
+          vy: Math.round(me.vy),
+          facing: me.facing,
+          hp: me.hp,
+          chargeTime: Math.round(me.chargeTime * 100) / 100,
+          hasShield: me.hasShield,
+          rapidTimer: me.rapidTimer,
+          tripleTimer: me.tripleTimer,
+          alive: me.alive
+        };
+
+        if (onlineState.transport === 'peerjs' && onlineState.conn && onlineState.conn.open) {
+          try {
+            onlineState.conn.send({ type: 'PLAYER_STATE', state: payload });
+          } catch (e) {}
+          return;
+        }
+
+        if (!db) return;
         const fieldName = onlineState.role === 'host' ? 'hostState' : 'guestState';
 
         try {
           const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
           await updateDoc(roomRef, {
-            [fieldName]: {
-              x: Math.round(me.x * 10) / 10,
-              y: Math.round(me.y * 10) / 10,
-              vx: Math.round(me.vx),
-              vy: Math.round(me.vy),
-              facing: me.facing,
-              hp: me.hp,
-              chargeTime: Math.round(me.chargeTime * 100) / 100,
-              hasShield: me.hasShield,
-              rapidTimer: me.rapidTimer,
-              tripleTimer: me.tripleTimer,
-              alive: me.alive
-            }
+            [fieldName]: payload
+          });
+        } catch (err) {
+          // Ignore transient network drops
+        }
+      }
+
+      async function broadcastOnlineShot(bolts, isCharged) {
+        if (!onlineState.active || !onlineState.roomCode) return;
+        onlineState.eventCounter++;
+        const shotId = Date.now() * 100 + (onlineState.eventCounter % 100);
+        const shotPayload = {
+          id: shotId,
+          isCharged,
+          bolts
+        };
+
+        if (onlineState.transport === 'peerjs' && onlineState.conn && onlineState.conn.open) {
+          try {
+            onlineState.conn.send({ type: 'SHOT', shot: shotPayload });
+          } catch (e) {}
+          return;
+        }
+
+        if (!db) return;
+        const fieldName = onlineState.role === 'host' ? 'hostShot' : 'guestShot';
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+          await updateDoc(roomRef, {
+            [fieldName]: shotPayload
           });
         } catch (err) {
           // Ignore transient network drops
@@ -2547,22 +2692,27 @@
           matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
           audio.matchWin();
 
-          if (settings.mode === 'online' && onlineState.active && db && onlineState.roomCode) {
+          if (settings.mode === 'online' && onlineState.active && onlineState.roomCode) {
             recordOnlineMatchOutcome(p1Wins >= WINS_NEEDED);
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
-            updateDoc(roomRef, {
+            const evPayload = {
+              id: Date.now(),
+              type: 'MATCH_OVER',
               p1Wins,
               p2Wins,
-              roundEvent: {
-                id: Date.now(),
-                type: 'MATCH_OVER',
+              bannerMain: matchState.bannerMain,
+              bannerSub: matchState.bannerSub,
+              bannerColor: matchState.bannerColor
+            };
+            if (onlineState.transport === 'peerjs' && onlineState.conn && onlineState.conn.open) {
+              try { onlineState.conn.send({ type: 'ROUND_EVENT', event: evPayload }); } catch (e) {}
+            } else if (db) {
+              const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+              updateDoc(roomRef, {
                 p1Wins,
                 p2Wins,
-                bannerMain: matchState.bannerMain,
-                bannerSub: matchState.bannerSub,
-                bannerColor: matchState.bannerColor
-              }
-            }).catch(() => {});
+                roundEvent: evPayload
+              }).catch(() => {});
+            }
           }
         } else {
           matchState.phase = 'ROUND_OVER';
@@ -2572,26 +2722,75 @@
           matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
           audio.roundWin();
 
-          if (settings.mode === 'online' && onlineState.active && db && onlineState.roomCode) {
+          if (settings.mode === 'online' && onlineState.active && onlineState.roomCode) {
             const nextArena = settings.arenaChoice === 'cycle'
               ? (matchState.arenaIndex + 1) % ARENAS.length
               : matchState.arenaIndex;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
-            updateDoc(roomRef, {
+            const evPayload = {
+              id: Date.now(),
+              type: 'ROUND_OVER',
               p1Wins,
               p2Wins,
-              roundEvent: {
-                id: Date.now(),
-                type: 'ROUND_OVER',
+              nextRound: matchState.roundNumber + 1,
+              nextArena,
+              bannerMain: matchState.bannerMain,
+              bannerSub: matchState.bannerSub,
+              bannerColor: matchState.bannerColor
+            };
+            if (onlineState.transport === 'peerjs' && onlineState.conn && onlineState.conn.open) {
+              try { onlineState.conn.send({ type: 'ROUND_EVENT', event: evPayload }); } catch (e) {}
+            } else if (db) {
+              const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+              updateDoc(roomRef, {
                 p1Wins,
                 p2Wins,
-                nextRound: matchState.roundNumber + 1,
-                nextArena,
-                bannerMain: matchState.bannerMain,
-                bannerSub: matchState.bannerSub,
-                bannerColor: matchState.bannerColor
-              }
-            }).catch(() => {});
+                roundEvent: evPayload
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+
+      function updateLasers(dt) {
+        const arena = currentArena();
+        for (let i = lasers.length - 1; i >= 0; i--) {
+          const l = lasers[i];
+          l.trail.push({ x: l.x, y: l.y });
+          if (l.trail.length > (l.isCharged ? 6 : 4)) {
+            l.trail.shift();
+          }
+
+          l.x += l.vx * dt;
+          l.y += l.vy * dt;
+
+          // Remove if off-screen
+          if (l.x + l.w < 0 || l.x > GAME_W || l.y + l.h < 0 || l.y > GAME_H) {
+            lasers.splice(i, 1);
+            continue;
+          }
+
+          // Check solid wall/pillar impacts
+          let hitWall = false;
+          for (const s of arena.solids) {
+            if (rectsOverlap(l, s)) {
+              hitWall = true;
+              spawnParticles(l.x + (l.vx > 0 ? l.w : 0), l.y + l.h * 0.5, l.color, l.isCharged ? 16 : 7, 130);
+              break;
+            }
+          }
+          if (hitWall) {
+            lasers.splice(i, 1);
+            continue;
+          }
+
+          // Check player hit
+          for (const target of players) {
+            if (!target.alive || target.id === l.ownerId) continue;
+            if (rectsOverlap(l, target)) {
+              handleLaserHit(l, target);
+              lasers.splice(i, 1);
+              break;
+            }
           }
         }
       }
