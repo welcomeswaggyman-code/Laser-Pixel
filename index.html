@@ -247,6 +247,72 @@
       box-shadow: 0 4px 0 #5b0e85, 0 0 18px rgba(184, 41, 255, 0.7);
     }
 
+    .arcade-btn.selected-gold {
+      border-color: var(--accent-gold);
+      background: rgba(255, 215, 0, 0.2);
+      color: #ffffff;
+      box-shadow: 0 4px 0 #8c7600, 0 0 14px rgba(255, 215, 0, 0.35);
+    }
+
+    /* Simple Account & Online Room Panel */
+    .account-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: rgba(8, 12, 26, 0.9);
+      border: 2px solid #2b386b;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 9px;
+    }
+
+    .pixel-input {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      border: 2px solid #3e4e88;
+      background: #0b0f22;
+      color: #ffffff;
+      outline: none;
+      text-transform: uppercase;
+    }
+
+    .pixel-input:focus {
+      border-color: var(--border-cyan);
+    }
+
+    .online-box {
+      background: rgba(10, 14, 30, 0.92);
+      border: 2px solid var(--accent-gold);
+      border-radius: 10px;
+      padding: 14px;
+      margin: 10px 0;
+    }
+
+    .room-code-display {
+      font-size: clamp(18px, 4vw, 26px);
+      letter-spacing: 5px;
+      color: var(--accent-gold);
+      background: #070a17;
+      border: 2px dashed var(--accent-gold);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 10px auto;
+      display: inline-block;
+      cursor: pointer;
+    }
+
+    .status-pill {
+      font-size: 9px;
+      color: #2ce8a2;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
     .start-btn {
       margin-top: 16px;
       width: 100%;
@@ -459,10 +525,44 @@
         <h1 class="game-title">PIXEL LASER</h1>
         <div class="subtitle">FIRST TO 5 ROUND WINS • CYBER ARENA DUEL</div>
 
+        <!-- Simple Pilot Account Bar -->
+        <div class="account-bar">
+          <div style="text-align: left;">
+            <span style="color: #8b9bb4;">PILOT:</span>
+            <span id="account-name-display" style="color: #00f3ff;">GUEST</span>
+            <span id="account-record-display" style="color: #ffd700; margin-left: 6px;">(0W - 0L)</span>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input id="input-callsign" class="pixel-input" type="text" maxlength="10" placeholder="CALLSIGN" style="width: 125px; padding: 6px 8px; font-size: 9px;" />
+            <button id="btn-save-account" class="hud-btn" style="border-color: #2ce8a2; color: #2ce8a2;">SAVE ID</button>
+          </div>
+        </div>
+        <div id="account-uid-line" style="font-size: 8px; color: #64748b; margin-bottom: 10px; word-break: break-all;">ACCOUNT ID: CONNECTING...</div>
+
         <div class="section-label">1. SELECT GAME MODE</div>
         <div class="btn-group" id="mode-group">
           <button class="arcade-btn selected-cyan" data-mode="1vCPU">1 vs CPU</button>
-          <button class="arcade-btn" data-mode="1v1">1 vs 1 (2 PLAYER)</button>
+          <button class="arcade-btn" data-mode="1v1">1 vs 1 (LOCAL)</button>
+          <button class="arcade-btn" data-mode="online">ONLINE 1v1 (CODE)</button>
+        </div>
+
+        <!-- Online Room Code Section -->
+        <div id="online-room-section" class="online-box" style="display: none;">
+          <div style="font-size: 10px; color: #ffd700; margin-bottom: 10px;">ONLINE DUEL BY ROOM CODE</div>
+          <div class="btn-group">
+            <button id="btn-host-room" class="arcade-btn selected-gold">CREATE CODE</button>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input id="input-room-code" class="pixel-input" type="text" maxlength="6" placeholder="ENTER CODE" style="width: 140px; text-align: center;" />
+              <button id="btn-join-room" class="arcade-btn selected-cyan">JOIN</button>
+            </div>
+          </div>
+
+          <div id="hosted-code-panel" style="display: none; margin-top: 8px;">
+            <div style="font-size: 8px; color: #8b9bb4;">SHARE THIS CODE WITH PLAYER 2 (TAP TO COPY):</div>
+            <div id="room-code-text" class="room-code-display" title="Click to Copy Room Code">-----</div>
+          </div>
+
+          <div id="online-status-text" class="status-pill">CREATE A CODE OR ENTER YOUR FRIEND'S CODE TO PLAY!</div>
         </div>
 
         <div id="cpu-diff-section">
@@ -490,6 +590,7 @@
         </div>
 
         <button class="start-btn" id="btn-start-match">START MATCH</button>
+        <div id="menu-feedback-msg" style="font-size: 9px; color: #ff2a85; margin-top: 8px; min-height: 12px;"></div>
 
         <div class="controls-legend" id="controls-legend-box">
           <!-- Dynamically updated based on 1vCPU vs 1v1 -->
@@ -531,20 +632,506 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
     /**
      * PIXEL LASER - Complete 2D Retro Pixel Art Arena Shooter
-     * Single-file self-contained architecture:
-     * 1. Retro Web Audio Synthesizer (zero external audio dependencies)
-     * 2. Logical Pixel Canvas Engine (800x450 internal resolution scaled cleanly)
-     * 3. Multi-Arena Geometry, Jump Pads, One-Way Drop-Through Platforms
-     * 4. Procedural Pixel-Art Character, Jetpack Sparks & Weapon Renderer
-     * 5. Smart 4-Tier CPU AI with Frame-Level Obstacle Lookahead & Auto-Vaulting
-     * 6. Multi-Touch Responsive Arcade Controls + Dual Keyboard Input
+     * Single-file self-contained architecture with Pilot Accounts & Online Room Codes
      */
 
     (() => {
       'use strict';
+
+      // =========================================================================
+      // 0. FIREBASE CLOUD ACCOUNTS & ONLINE ROOM SYNC
+      // =========================================================================
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'pixel-laser-default';
+      let db = null;
+      let auth = null;
+      let currentUser = null;
+
+      const accountState = {
+        uid: null,
+        callsign: 'PILOT',
+        wins: 0,
+        losses: 0,
+        ready: false
+      };
+
+      const onlineState = {
+        active: false,
+        role: null,        // 'host' (Player 1) | 'guest' (Player 2)
+        roomCode: null,
+        opponentName: 'PLAYER 2',
+        opponentConnected: false,
+        unsubRoom: null,
+        syncTimer: 0,
+        lastAppliedEventId: 0,
+        eventCounter: 0
+      };
+
+      function showMenuFeedback(msg, isGood = false) {
+        const el = document.getElementById('menu-feedback-msg');
+        if (!el) return;
+        el.style.color = isGood ? '#2ce8a2' : '#ff2a85';
+        el.textContent = msg;
+      }
+
+      function updateAccountUI() {
+        const nameEl = document.getElementById('account-name-display');
+        const recEl = document.getElementById('account-record-display');
+        const uidEl = document.getElementById('account-uid-line');
+        const inputEl = document.getElementById('input-callsign');
+
+        if (nameEl) nameEl.textContent = accountState.callsign;
+        if (recEl) recEl.textContent = `(${accountState.wins}W - ${accountState.losses}L)`;
+        if (uidEl) uidEl.textContent = accountState.uid ? `ACCOUNT ID: ${accountState.uid}` : 'ACCOUNT ID: OFFLINE';
+        if (inputEl && !inputEl.value && accountState.callsign !== 'PILOT') {
+          inputEl.value = accountState.callsign;
+        }
+      }
+
+      async function initCloudAccount() {
+        try {
+          if (typeof __firebase_config === 'undefined') {
+            updateAccountUI();
+            return;
+          }
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+
+          currentUser = auth.currentUser;
+          if (!currentUser) return;
+
+          accountState.uid = currentUser.uid;
+          accountState.callsign = `PILOT-${currentUser.uid.slice(0, 4).toUpperCase()}`;
+
+          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats');
+          const snap = await getDoc(profileRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.callsign) accountState.callsign = data.callsign;
+            accountState.wins = data.wins || 0;
+            accountState.losses = data.losses || 0;
+          } else {
+            await setDoc(profileRef, {
+              callsign: accountState.callsign,
+              wins: 0,
+              losses: 0,
+              updatedAt: serverTimestamp()
+            });
+          }
+
+          accountState.ready = true;
+          updateAccountUI();
+        } catch (err) {
+          console.warn('Cloud account initialization skipped:', err);
+          updateAccountUI();
+        }
+      }
+
+      async function saveCallsign(newName) {
+        const cleaned = (newName || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 10);
+        if (!cleaned) {
+          showMenuFeedback('ENTER A VALID CALLSIGN (A-Z, 0-9)');
+          return;
+        }
+        accountState.callsign = cleaned;
+        updateAccountUI();
+        showMenuFeedback(`SAVED ACCOUNT CALLSIGN: ${cleaned}`, true);
+
+        if (!currentUser || !db) return;
+        try {
+          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats');
+          await setDoc(profileRef, {
+            callsign: accountState.callsign,
+            wins: accountState.wins,
+            losses: accountState.losses,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (err) {
+          console.warn('Failed to save callsign:', err);
+        }
+      }
+
+      async function recordOnlineMatchOutcome(didWin) {
+        if (didWin) accountState.wins++;
+        else accountState.losses++;
+        updateAccountUI();
+
+        if (!currentUser || !db) return;
+        try {
+          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'stats');
+          await setDoc(profileRef, {
+            callsign: accountState.callsign,
+            wins: accountState.wins,
+            losses: accountState.losses,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (err) {
+          console.warn('Failed to update match record:', err);
+        }
+      }
+
+      function generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 5; i++) {
+          code += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return code;
+      }
+
+      function leaveOnlineRoom() {
+        if (onlineState.unsubRoom) {
+          onlineState.unsubRoom();
+          onlineState.unsubRoom = null;
+        }
+        onlineState.active = false;
+        onlineState.role = null;
+        onlineState.roomCode = null;
+        onlineState.opponentConnected = false;
+        onlineState.lastAppliedEventId = 0;
+        const hostedPanel = document.getElementById('hosted-code-panel');
+        if (hostedPanel) hostedPanel.style.display = 'none';
+      }
+
+      async function createOnlineRoom() {
+        if (!currentUser || !db) {
+          showMenuFeedback('ONLINE ACCOUNT STILL CONNECTING...');
+          return;
+        }
+        leaveOnlineRoom();
+
+        const code = generateRoomCode();
+        const statusEl = document.getElementById('online-status-text');
+        const codeTextEl = document.getElementById('room-code-text');
+        const hostedPanel = document.getElementById('hosted-code-panel');
+
+        statusEl.style.color = '#ffd700';
+        statusEl.textContent = 'CREATING ROOM...';
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+          await setDoc(roomRef, {
+            code,
+            status: 'waiting',
+            hostUid: currentUser.uid,
+            hostName: accountState.callsign,
+            guestUid: null,
+            guestName: null,
+            arenaChoice: settings.arenaChoice,
+            powerupsEnabled: settings.powerupsEnabled,
+            maxHp: settings.maxHp,
+            roundNumber: 1,
+            arenaIndex: 0,
+            p1Wins: 0,
+            p2Wins: 0,
+            hostState: null,
+            guestState: null,
+            hostShot: null,
+            guestShot: null,
+            roundEvent: null,
+            updatedAt: serverTimestamp()
+          });
+
+          onlineState.active = true;
+          onlineState.role = 'host';
+          onlineState.roomCode = code;
+          onlineState.opponentConnected = false;
+
+          codeTextEl.textContent = code;
+          hostedPanel.style.display = 'block';
+          statusEl.style.color = '#2ce8a2';
+          statusEl.textContent = `ROOM ${code} READY! WAITING FOR FRIEND TO JOIN...`;
+          showMenuFeedback('');
+
+          subscribeToRoom(code);
+        } catch (err) {
+          console.error('Create room error:', err);
+          statusEl.style.color = '#ff2a85';
+          statusEl.textContent = 'FAILED TO CREATE ROOM. TRY AGAIN.';
+        }
+      }
+
+      async function joinOnlineRoom(rawCode) {
+        if (!currentUser || !db) {
+          showMenuFeedback('ONLINE ACCOUNT STILL CONNECTING...');
+          return;
+        }
+        const code = (rawCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (code.length < 4) {
+          showMenuFeedback('ENTER A VALID ROOM CODE');
+          return;
+        }
+
+        leaveOnlineRoom();
+        const statusEl = document.getElementById('online-status-text');
+        statusEl.style.color = '#ffd700';
+        statusEl.textContent = `JOINING ROOM ${code}...`;
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+          const snap = await getDoc(roomRef);
+          if (!snap.exists()) {
+            statusEl.style.color = '#ff2a85';
+            statusEl.textContent = `ROOM "${code}" NOT FOUND! CHECK THE CODE.`;
+            return;
+          }
+
+          const data = snap.data();
+          if (data.guestUid && data.guestUid !== currentUser.uid) {
+            statusEl.style.color = '#ff2a85';
+            statusEl.textContent = 'ROOM IS ALREADY FULL!';
+            return;
+          }
+
+          await updateDoc(roomRef, {
+            status: 'joined',
+            guestUid: currentUser.uid,
+            guestName: accountState.callsign,
+            updatedAt: serverTimestamp()
+          });
+
+          onlineState.active = true;
+          onlineState.role = 'guest';
+          onlineState.roomCode = code;
+          onlineState.opponentName = data.hostName || 'HOST';
+          onlineState.opponentConnected = true;
+
+          // Match host room rules
+          settings.powerupsEnabled = data.powerupsEnabled !== false;
+          settings.maxHp = data.maxHp || 3;
+
+          statusEl.style.color = '#2ce8a2';
+          statusEl.textContent = `CONNECTED TO ${onlineState.opponentName}! STARTING MATCH...`;
+          showMenuFeedback('');
+
+          subscribeToRoom(code);
+        } catch (err) {
+          console.error('Join room error:', err);
+          statusEl.style.color = '#ff2a85';
+          statusEl.textContent = 'COULD NOT JOIN ROOM. TRY AGAIN.';
+        }
+      }
+
+      function subscribeToRoom(code) {
+        if (!db) return;
+        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+
+        onlineState.unsubRoom = onSnapshot(roomRef, (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          const statusEl = document.getElementById('online-status-text');
+
+          if (onlineState.role === 'host') {
+            if (data.guestUid && !onlineState.opponentConnected) {
+              onlineState.opponentConnected = true;
+              onlineState.opponentName = data.guestName || 'PLAYER 2';
+              if (statusEl) {
+                statusEl.style.color = '#2ce8a2';
+                statusEl.textContent = `${onlineState.opponentName} JOINED! LAUNCHING MATCH...`;
+              }
+              // Automatically start the online duel when guest connects
+              if (matchState.phase === 'MENU') {
+                startOnlineMatchAsHost(data);
+              }
+            }
+
+            // Receive Guest movement/state & shots
+            if (data.guestState && players[1] && matchState.phase !== 'MENU') {
+              applyRemotePlayerState(players[1], data.guestState);
+            }
+            if (data.guestShot && data.guestShot.id > onlineState.lastAppliedEventId) {
+              onlineState.lastAppliedEventId = data.guestShot.id;
+              spawnRemoteLaser(data.guestShot);
+            }
+          } else if (onlineState.role === 'guest') {
+            onlineState.opponentName = data.hostName || 'HOST';
+            settings.powerupsEnabled = data.powerupsEnabled !== false;
+            settings.maxHp = data.maxHp || 3;
+
+            // Start or advance rounds driven by host
+            if (data.status === 'playing' && matchState.phase === 'MENU') {
+              matchState.arenaIndex = data.arenaIndex || 0;
+              matchState.roundNumber = data.roundNumber || 1;
+              startNewMatch(true);
+            }
+
+            // Receive Host movement/state & shots
+            if (data.hostState && players[0] && matchState.phase !== 'MENU') {
+              applyRemotePlayerState(players[0], data.hostState);
+            }
+            if (data.hostShot && data.hostShot.id > onlineState.lastAppliedEventId) {
+              onlineState.lastAppliedEventId = data.hostShot.id;
+              spawnRemoteLaser(data.hostShot);
+            }
+
+            // Sync authoritative round/match outcome from host
+            if (data.roundEvent && data.roundEvent.id !== onlineState.lastRoundEventId) {
+              onlineState.lastRoundEventId = data.roundEvent.id;
+              handleRemoteRoundEvent(data.roundEvent);
+            }
+          }
+        }, (err) => {
+          console.warn('Room sync listener error:', err);
+        });
+      }
+
+      async function startOnlineMatchAsHost(roomData) {
+        if (!db || !onlineState.roomCode) return;
+        const startArena = settings.arenaChoice === 'cycle' ? 0 : (parseInt(settings.arenaChoice, 10) || 0);
+        matchState.arenaIndex = startArena;
+        matchState.roundNumber = 1;
+        onlineState.lastRoundEventId = 0;
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+          await updateDoc(roomRef, {
+            status: 'playing',
+            arenaIndex: startArena,
+            roundNumber: 1,
+            p1Wins: 0,
+            p2Wins: 0,
+            roundEvent: null,
+            updatedAt: serverTimestamp()
+          });
+        } catch (e) {
+          console.warn('Host start sync error:', e);
+        }
+
+        startNewMatch(true);
+      }
+
+      function applyRemotePlayerState(remotePlayer, st) {
+        if (!remotePlayer || !st) return;
+        remotePlayer.x = st.x;
+        remotePlayer.y = st.y;
+        remotePlayer.vx = st.vx;
+        remotePlayer.vy = st.vy;
+        remotePlayer.facing = st.facing;
+        remotePlayer.hp = st.hp;
+        remotePlayer.chargeTime = st.chargeTime || 0;
+        remotePlayer.hasShield = !!st.hasShield;
+        remotePlayer.rapidTimer = st.rapidTimer || 0;
+        remotePlayer.tripleTimer = st.tripleTimer || 0;
+        remotePlayer.alive = st.alive !== false;
+      }
+
+      function spawnRemoteLaser(shotData) {
+        if (!shotData || !Array.isArray(shotData.bolts)) return;
+        shotData.bolts.forEach(b => {
+          lasers.push({
+            ownerId: b.ownerId,
+            x: b.x,
+            y: b.y,
+            w: b.w,
+            h: b.h,
+            vx: b.vx,
+            vy: b.vy,
+            damage: b.damage,
+            isCharged: b.isCharged,
+            color: b.color,
+            coreColor: '#ffffff',
+            trail: []
+          });
+        });
+        if (shotData.isCharged) audio.chargedLaser();
+        else audio.laser(1.0);
+      }
+
+      function handleRemoteRoundEvent(ev) {
+        if (!ev) return;
+        matchState.stats.p1.wins = ev.p1Wins;
+        matchState.stats.p2.wins = ev.p2Wins;
+
+        if (ev.type === 'ROUND_OVER') {
+          matchState.phase = 'ROUND_OVER';
+          matchState.phaseTimer = 2.0;
+          matchState.bannerMain = ev.bannerMain;
+          matchState.bannerSub = ev.bannerSub;
+          matchState.bannerColor = ev.bannerColor;
+          audio.roundWin();
+          setTimeout(() => {
+            if (matchState.phase === 'ROUND_OVER') {
+              matchState.roundNumber = ev.nextRound;
+              matchState.arenaIndex = ev.nextArena;
+              resetRound();
+            }
+          }, 2000);
+        } else if (ev.type === 'MATCH_OVER') {
+          matchState.phase = 'MATCH_OVER';
+          matchState.phaseTimer = 1.3;
+          matchState.bannerMain = ev.bannerMain;
+          matchState.bannerSub = ev.bannerSub;
+          matchState.bannerColor = ev.bannerColor;
+          audio.matchWin();
+          const guestWon = ev.p2Wins >= WINS_NEEDED;
+          recordOnlineMatchOutcome(guestWon);
+        }
+      }
+
+      async function pushOnlineState(dt) {
+        if (!onlineState.active || !db || !onlineState.roomCode || !players[0] || !players[1]) return;
+        onlineState.syncTimer -= dt;
+        if (onlineState.syncTimer > 0) return;
+        onlineState.syncTimer = 0.085; // ~12 updates/sec for smooth cross-device sync
+
+        const me = onlineState.role === 'host' ? players[0] : players[1];
+        const fieldName = onlineState.role === 'host' ? 'hostState' : 'guestState';
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+          await updateDoc(roomRef, {
+            [fieldName]: {
+              x: Math.round(me.x * 10) / 10,
+              y: Math.round(me.y * 10) / 10,
+              vx: Math.round(me.vx),
+              vy: Math.round(me.vy),
+              facing: me.facing,
+              hp: me.hp,
+              chargeTime: Math.round(me.chargeTime * 100) / 100,
+              hasShield: me.hasShield,
+              rapidTimer: me.rapidTimer,
+              tripleTimer: me.tripleTimer,
+              alive: me.alive
+            }
+          });
+        } catch (err) {
+          // Ignore transient network drops
+        }
+      }
+
+      async function broadcastOnlineShot(bolts, isCharged) {
+        if (!onlineState.active || !db || !onlineState.roomCode) return;
+        onlineState.eventCounter++;
+        const shotId = Date.now() * 100 + (onlineState.eventCounter % 100);
+        const fieldName = onlineState.role === 'host' ? 'hostShot' : 'guestShot';
+
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+          await updateDoc(roomRef, {
+            [fieldName]: {
+              id: shotId,
+              isCharged,
+              bolts
+            }
+          });
+        } catch (err) {
+          // Ignore transient network drops
+        }
+      }
 
       // =========================================================================
       // 1. RETRO SOUND SYNTHESIZER (WEB AUDIO API)
@@ -958,9 +1545,17 @@
       // =========================================================================
       function createPlayer(id, spawnX, spawnY, facing, isCPU = false) {
         const isExtremeCPU = isCPU && settings.difficulty === 'Extreme';
+        let playerName = id === 1 ? 'P1' : (isCPU ? `CPU (${settings.difficulty.toUpperCase()})` : 'P2');
+        if (settings.mode === 'online') {
+          if (id === 1) {
+            playerName = onlineState.role === 'host' ? accountState.callsign : onlineState.opponentName;
+          } else {
+            playerName = onlineState.role === 'guest' ? accountState.callsign : onlineState.opponentName;
+          }
+        }
         return {
           id, // 1 or 2
-          name: id === 1 ? 'P1' : (isCPU ? `CPU (${settings.difficulty.toUpperCase()})` : 'P2'),
+          name: playerName,
           isCPU,
           reloadMultiplier: isExtremeCPU ? 2.0 : 1.0, // Extreme CPU has 2x reload & charge speed
           x: spawnX - 12,
@@ -1254,7 +1849,14 @@
         audio.countdown(false);
       }
 
-      function startNewMatch() {
+      function startNewMatch(fromOnline = false) {
+        if (settings.mode === 'online' && !fromOnline) {
+          if (!onlineState.active || !onlineState.opponentConnected) {
+            showMenuFeedback('CREATE OR JOIN A ROOM CODE FIRST!');
+            return;
+          }
+        }
+
         matchState.roundNumber = 1;
         matchState.paused = false;
         matchState.hitStopTimer = 0;
@@ -1264,10 +1866,12 @@
           p2: { wins: 0, shots: 0, hits: 0, chargedHits: 0 }
         };
 
-        if (settings.arenaChoice === 'cycle') {
-          matchState.arenaIndex = 0;
-        } else {
-          matchState.arenaIndex = parseInt(settings.arenaChoice, 10) || 0;
+        if (!fromOnline) {
+          if (settings.arenaChoice === 'cycle') {
+            matchState.arenaIndex = 0;
+          } else {
+            matchState.arenaIndex = parseInt(settings.arenaChoice, 10) || 0;
+          }
         }
 
         hideAllOverlays();
@@ -1600,9 +2204,10 @@
 
         const angles = isCharged ? [0] : (isTriple ? [-0.11, 0, 0.11] : [0]);
         const speed = isCharged ? CHARGED_LASER_SPEED : LASER_SPEED;
+        const spawnedBolts = [];
 
         angles.forEach(ang => {
-          lasers.push({
+          const bolt = {
             ownerId: player.id,
             x: muzzleX,
             y: muzzleY,
@@ -1615,8 +2220,28 @@
             color,
             coreColor,
             trail: []
+          };
+          lasers.push(bolt);
+          spawnedBolts.push({
+            ownerId: bolt.ownerId,
+            x: bolt.x,
+            y: bolt.y,
+            w: bolt.w,
+            h: bolt.h,
+            vx: bolt.vx,
+            vy: bolt.vy,
+            damage: bolt.damage,
+            isCharged: bolt.isCharged,
+            color: bolt.color
           });
         });
+
+        if (settings.mode === 'online' && onlineState.active) {
+          const myPlayerId = onlineState.role === 'host' ? 1 : 2;
+          if (player.id === myPlayerId) {
+            broadcastOnlineShot(spawnedBolts, isCharged);
+          }
+        }
 
         if (player.id === 1) matchState.stats.p1.shots += angles.length;
         else matchState.stats.p2.shots += angles.length;
@@ -1903,6 +2528,11 @@
       }
 
       function onRoundWon(winner) {
+        if (settings.mode === 'online' && onlineState.role === 'guest') {
+          // Host is authoritative for round scoring and broadcasts roundEvent to Guest
+          return;
+        }
+
         if (winner.id === 1) matchState.stats.p1.wins++;
         else matchState.stats.p2.wins++;
 
@@ -1916,6 +2546,24 @@
           matchState.bannerSub = `FINAL SCORE ${p1Wins} - ${p2Wins}`;
           matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
           audio.matchWin();
+
+          if (settings.mode === 'online' && onlineState.active && db && onlineState.roomCode) {
+            recordOnlineMatchOutcome(p1Wins >= WINS_NEEDED);
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+            updateDoc(roomRef, {
+              p1Wins,
+              p2Wins,
+              roundEvent: {
+                id: Date.now(),
+                type: 'MATCH_OVER',
+                p1Wins,
+                p2Wins,
+                bannerMain: matchState.bannerMain,
+                bannerSub: matchState.bannerSub,
+                bannerColor: matchState.bannerColor
+              }
+            }).catch(() => {});
+          }
         } else {
           matchState.phase = 'ROUND_OVER';
           matchState.phaseTimer = 2.1;
@@ -1923,51 +2571,27 @@
           matchState.bannerSub = `SCORE: ${p1Wins} - ${p2Wins} (FIRST TO ${WINS_NEEDED})`;
           matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
           audio.roundWin();
-        }
-      }
 
-      function updateLasers(dt) {
-        const arena = currentArena();
-
-        for (let i = lasers.length - 1; i >= 0; i--) {
-          const l = lasers[i];
-          l.trail.push({ x: l.x, y: l.y });
-          if (l.trail.length > 5) l.trail.shift();
-
-          l.x += l.vx * dt;
-          l.y += l.vy * dt;
-
-          // Out of bounds
-          if (l.x < -20 || l.x > GAME_W + 20 || l.y < -20 || l.y > GAME_H + 20) {
-            lasers.splice(i, 1);
-            continue;
-          }
-
-          // Hit solid walls/pillars
-          let hitWall = false;
-          for (const s of arena.solids) {
-            if (rectsOverlap(l, s)) {
-              hitWall = true;
-              break;
-            }
-          }
-          if (hitWall) {
-            spawnParticles(l.x + (l.vx > 0 ? l.w : 0), l.y + 2, l.color, 7, 120);
-            lasers.splice(i, 1);
-            continue;
-          }
-
-          // Hit opposing player
-          let hitPlayer = false;
-          for (const p of players) {
-            if (p.id !== l.ownerId && p.alive && rectsOverlap(l, p)) {
-              handleLaserHit(l, p);
-              hitPlayer = true;
-              break;
-            }
-          }
-          if (hitPlayer) {
-            lasers.splice(i, 1);
+          if (settings.mode === 'online' && onlineState.active && db && onlineState.roomCode) {
+            const nextArena = settings.arenaChoice === 'cycle'
+              ? (matchState.arenaIndex + 1) % ARENAS.length
+              : matchState.arenaIndex;
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', onlineState.roomCode);
+            updateDoc(roomRef, {
+              p1Wins,
+              p2Wins,
+              roundEvent: {
+                id: Date.now(),
+                type: 'ROUND_OVER',
+                p1Wins,
+                p2Wins,
+                nextRound: matchState.roundNumber + 1,
+                nextArena,
+                bannerMain: matchState.bannerMain,
+                bannerSub: matchState.bannerSub,
+                bannerColor: matchState.bannerColor
+              }
+            }).catch(() => {});
           }
         }
       }
@@ -2056,23 +2680,34 @@
             matchState.phase = 'PLAYING';
           }
         } else if (matchState.phase === 'PLAYING') {
-          if (settings.mode === '1vCPU') {
-            updateCPU(players[1], players[0], dt);
+          if (settings.mode === 'online') {
+            // Each online player controls their own character locally and syncs over Firestore
+            if (onlineState.role === 'host') {
+              updatePlayer(players[0], inputs.p1, dt);
+            } else {
+              updatePlayer(players[1], inputs.p1, dt);
+            }
+            pushOnlineState(dt);
+          } else {
+            if (settings.mode === '1vCPU') {
+              updateCPU(players[1], players[0], dt);
+            }
+            updatePlayer(players[0], inputs.p1, dt);
+            updatePlayer(players[1], inputs.p2, dt);
           }
-
-          updatePlayer(players[0], inputs.p1, dt);
-          updatePlayer(players[1], inputs.p2, dt);
           updateLasers(dt);
           updateParticlesAndPowerups(dt);
         } else if (matchState.phase === 'ROUND_OVER') {
           updateParticlesAndPowerups(dt);
           matchState.phaseTimer -= dt;
           if (matchState.phaseTimer <= 0) {
-            matchState.roundNumber++;
-            if (settings.arenaChoice === 'cycle') {
-              matchState.arenaIndex = (matchState.arenaIndex + 1) % ARENAS.length;
+            if (settings.mode !== 'online' || onlineState.role === 'host') {
+              matchState.roundNumber++;
+              if (settings.arenaChoice === 'cycle') {
+                matchState.arenaIndex = (matchState.arenaIndex + 1) % ARENAS.length;
+              }
+              resetRound();
             }
-            resetRound();
           }
         } else if (matchState.phase === 'MATCH_OVER') {
           updateParticlesAndPowerups(dt);
@@ -2404,7 +3039,8 @@
         ctx.textAlign = 'left';
         ctx.font = '10px "Press Start 2P", monospace';
         ctx.fillStyle = '#00f3ff';
-        ctx.fillText(`P1 (${matchState.stats.p1.wins}/${WINS_NEEDED})`, 22, 23);
+        const p1HudName = players[0] ? players[0].name : 'P1';
+        ctx.fillText(`${p1HudName} (${matchState.stats.p1.wins}/${WINS_NEEDED})`, 22, 23);
 
         // P1 Round Win Pips (First to 5)
         for (let i = 0; i < WINS_NEEDED; i++) {
@@ -2427,7 +3063,9 @@
         ctx.fillStyle = '#ff2a85';
         const p2Label = settings.mode === '1vCPU'
           ? `CPU:${settings.difficulty.toUpperCase()} (${matchState.stats.p2.wins}/${WINS_NEEDED})`
-          : `P2 (${matchState.stats.p2.wins}/${WINS_NEEDED})`;
+          : (settings.mode === 'online' && players[1]
+              ? `${players[1].name} (${matchState.stats.p2.wins}/${WINS_NEEDED})`
+              : `P2 (${matchState.stats.p2.wins}/${WINS_NEEDED})`);
         ctx.fillText(p2Label, 500, 23);
 
         for (let i = 0; i < WINS_NEEDED; i++) {
@@ -2522,15 +3160,15 @@
       // 10. KEYBOARD & MULTI-TOUCH CONTROLS
       // =========================================================================
       function syncKeyboardInputs() {
-        if (settings.mode === '1vCPU') {
-          // In 1vCPU mode, BOTH WASD and Arrow Keys control Player 1 seamlessly!
+        if (settings.mode === '1vCPU' || settings.mode === 'online') {
+          // In 1vCPU and Online 1v1 modes, BOTH WASD and Arrow Keys control your local pilot!
           inputs.p1.left  = keysDown.has('KeyA') || keysDown.has('ArrowLeft');
           inputs.p1.right = keysDown.has('KeyD') || keysDown.has('ArrowRight');
           inputs.p1.jump  = keysDown.has('KeyW') || keysDown.has('ArrowUp');
           inputs.p1.down  = keysDown.has('KeyS') || keysDown.has('ArrowDown');
           inputs.p1.shoot = keysDown.has('Space') || keysDown.has('Enter') || keysDown.has('KeyJ') || keysDown.has('KeyZ');
         } else {
-          // In 1v1 mode, split controls between P1 (WASD + Space) and P2 (Arrows + Enter/M/Slash)
+          // In local 1v1 mode, split controls between P1 (WASD + Space) and P2 (Arrows + Enter/M/Slash)
           inputs.p1.left  = keysDown.has('KeyA');
           inputs.p1.right = keysDown.has('KeyD');
           inputs.p1.jump  = keysDown.has('KeyW');
@@ -2546,6 +3184,11 @@
       }
 
       window.addEventListener('keydown', (e) => {
+        // Allow normal typing inside account callsign and room code input fields
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+          return;
+        }
+
         const blockCodes = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
         if (blockCodes.includes(e.code)) {
           e.preventDefault();
@@ -2563,7 +3206,7 @@
         syncKeyboardInputs();
 
         if (!wasDown) {
-          if (settings.mode === '1vCPU') {
+          if (settings.mode === '1vCPU' || settings.mode === 'online') {
             if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.p1.jumpPressed = true;
             if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyJ' || e.code === 'KeyZ') inputs.p1.shootPressed = true;
           } else {
@@ -2576,12 +3219,15 @@
       });
 
       window.addEventListener('keyup', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+          return;
+        }
         const wasDown = keysDown.has(e.code);
         keysDown.delete(e.code);
         syncKeyboardInputs();
 
         if (wasDown) {
-          if (settings.mode === '1vCPU') {
+          if (settings.mode === '1vCPU' || settings.mode === 'online') {
             if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyJ' || e.code === 'KeyZ') {
               inputs.p1.shootReleased = true;
             }
@@ -2611,7 +3257,7 @@
       function buildTouchControls() {
         touchContainer.innerHTML = '';
 
-        if (settings.mode === '1vCPU') {
+        if (settings.mode === '1vCPU' || settings.mode === 'online') {
           touchContainer.innerHTML = `
             <div class="touch-zone touch-left-cluster">
               <div class="t-btn" data-player="p1" data-action="left">&#9664;</div>
@@ -2724,10 +3370,13 @@
       const controlsLegendBox = document.getElementById('controls-legend-box');
 
       function updateControlsLegend() {
-        if (settings.mode === '1vCPU') {
+        if (settings.mode === '1vCPU' || settings.mode === 'online') {
+          const modeNote = settings.mode === 'online'
+            ? '<strong>ONLINE CODE DUEL:</strong> Share your 5-character room code or enter a friend\'s code to battle across devices!'
+            : '<strong>MOBILE / TOUCH:</strong> On-screen arcade buttons activate automatically on touchscreens (or toggle via <strong>TOUCH</strong> in top-right). Hold <strong>FIRE</strong> for 3s to charge!';
           controlsLegendBox.innerHTML = `
-            <div><strong class="p1">PLAYER 1 (KEYBOARD):</strong> Move with <strong>A / D</strong> or <strong>LEFT / RIGHT</strong>. Jump with <strong>W</strong> or <strong>UP</strong>. Drop down with <strong>S / DOWN</strong>. Tap <strong>SPACE / ENTER</strong> to shoot (1 HP), or <strong>HOLD 3 SECONDS</strong> to unleash a <strong>3 HP CHARGED MEGA-LASER</strong>!</div>
-            <div style="margin-top:6px;"><strong class="p2">MOBILE / TOUCH:</strong> On-screen arcade buttons activate automatically on touchscreens (or toggle via <strong>TOUCH</strong> in top-right). Hold <strong>FIRE</strong> for 3s to charge!</div>
+            <div><strong class="p1">YOUR PILOT CONTROLS:</strong> Move with <strong>A / D</strong> or <strong>LEFT / RIGHT</strong>. Jump with <strong>W</strong> or <strong>UP</strong>. Drop down with <strong>S / DOWN</strong>. Tap <strong>SPACE / ENTER</strong> to shoot (1 HP), or <strong>HOLD 3 SECONDS</strong> to unleash a <strong>3 HP CHARGED MEGA-LASER</strong>!</div>
+            <div style="margin-top:6px; color:#ffd700;">${modeNote}</div>
           `;
         } else {
           controlsLegendBox.innerHTML = `
@@ -2805,12 +3454,55 @@
       document.querySelectorAll('#mode-group .arcade-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           audio.click();
-          document.querySelectorAll('#mode-group .arcade-btn').forEach(b => b.classList.remove('selected-cyan', 'selected-magenta'));
+          showMenuFeedback('');
+          document.querySelectorAll('#mode-group .arcade-btn').forEach(b => b.classList.remove('selected-cyan', 'selected-magenta', 'selected-gold'));
           settings.mode = btn.dataset.mode;
-          btn.classList.add(settings.mode === '1vCPU' ? 'selected-cyan' : 'selected-magenta');
+
+          if (settings.mode === '1vCPU') {
+            btn.classList.add('selected-cyan');
+            leaveOnlineRoom();
+          } else if (settings.mode === '1v1') {
+            btn.classList.add('selected-magenta');
+            leaveOnlineRoom();
+          } else {
+            btn.classList.add('selected-gold');
+          }
+
           document.getElementById('cpu-diff-section').style.display = settings.mode === '1vCPU' ? 'block' : 'none';
+          document.getElementById('online-room-section').style.display = settings.mode === 'online' ? 'block' : 'none';
           updateControlsLegend();
         });
+      });
+
+      // Account & Online Room Code Event Listeners
+      document.getElementById('btn-save-account').addEventListener('click', () => {
+        audio.click();
+        saveCallsign(document.getElementById('input-callsign').value);
+      });
+
+      document.getElementById('btn-host-room').addEventListener('click', () => {
+        audio.init();
+        audio.click();
+        createOnlineRoom();
+      });
+
+      document.getElementById('btn-join-room').addEventListener('click', () => {
+        audio.init();
+        audio.click();
+        joinOnlineRoom(document.getElementById('input-room-code').value);
+      });
+
+      document.getElementById('room-code-text').addEventListener('click', () => {
+        const code = document.getElementById('room-code-text').textContent;
+        if (!code || code === '-----') return;
+        const tempInput = document.createElement('input');
+        tempInput.value = code;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        audio.click();
+        showMenuFeedback(`COPIED ROOM CODE "${code}" TO CLIPBOARD!`, true);
       });
 
       // Difficulty buttons
@@ -2902,20 +3594,31 @@
       });
       document.getElementById('btn-to-main-menu').addEventListener('click', () => {
         audio.click();
+        leaveOnlineRoom();
         showMainMenu();
       });
 
       document.getElementById('btn-play-again').addEventListener('click', () => {
         audio.click();
+        if (settings.mode === 'online' && onlineState.active) {
+          if (onlineState.role === 'host') {
+            startOnlineMatchAsHost({});
+          } else {
+            showMenuFeedback('WAITING FOR HOST TO START REMATCH...', true);
+          }
+          return;
+        }
         startNewMatch();
       });
       document.getElementById('btn-victory-menu').addEventListener('click', () => {
         audio.click();
+        leaveOnlineRoom();
         showMainMenu();
       });
 
       // Boot sequence on window load
       window.addEventListener('load', () => {
+        initCloudAccount();
         updateControlsLegend();
         resizeCanvas();
         requestAnimationFrame(gameLoop);
