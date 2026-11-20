@@ -1311,18 +1311,24 @@
         const distToOpp = Math.hypot(dxToOpp, dyToOpp);
 
         // 1. Enhanced Incoming Laser Threat Detection & Evasion (All Difficulties)
+        const isOneHitMode = settings.maxHp === 1;
+        const effectiveDodgeSkill = isOneHitMode && (diff === 'Hard' || diff === 'Impossible' || diff === 'Extreme')
+          ? Math.min(1.0, params.dodgeSkill + 0.06)
+          : params.dodgeSkill;
+        const effectiveDodgeRange = isOneHitMode ? params.dodgeRange + 75 : params.dodgeRange;
+
         let incomingThreat = null;
         let closestImpactTime = Infinity;
         for (const l of lasers) {
           if (l.ownerId === cpu.id) continue;
           const distX = cpuCx - l.x;
-          const approaching = (l.vx > 0 && distX > -12 && distX < params.dodgeRange) ||
-                              (l.vx < 0 && distX < 12 && distX > -params.dodgeRange);
+          const approaching = (l.vx > 0 && distX > -14 && distX < effectiveDodgeRange) ||
+                              (l.vx < 0 && distX < 14 && distX > -effectiveDodgeRange);
           if (!approaching) continue;
 
           const timeToImpact = Math.abs(distX) / Math.max(1, Math.abs(l.vx));
           const predictedLaserY = l.y + l.vy * timeToImpact;
-          const dangerBand = l.isCharged ? 52 : 38;
+          const dangerBand = l.isCharged ? 56 : (isOneHitMode ? 48 : 38);
 
           if (Math.abs(predictedLaserY - cpuCy) < dangerBand && timeToImpact < closestImpactTime) {
             closestImpactTime = timeToImpact;
@@ -1331,8 +1337,10 @@
         }
 
         if (incomingThreat && cpu.ai.dodgeCooldown <= 0) {
-          if (Math.random() < params.dodgeSkill) {
-            cpu.ai.dodgeCooldown = diff === 'Extreme' ? 0.14 : (diff === 'Impossible' ? 0.18 : 0.25);
+          if (Math.random() < effectiveDodgeSkill) {
+            cpu.ai.dodgeCooldown = isOneHitMode
+              ? (diff === 'Extreme' ? 0.06 : (diff === 'Impossible' ? 0.09 : 0.14))
+              : (diff === 'Extreme' ? 0.14 : (diff === 'Impossible' ? 0.18 : 0.25));
             const laserAboveCenter = incomingThreat.y < cpuCy - 4;
 
             if (cpu.onGround) {
@@ -1357,8 +1365,8 @@
 
         // Also preemptively dodge if opponent is aiming a nearly-full 3-second Charged Shot directly at CPU
         if (!incomingThreat && opponent.chargeTime >= 2.35 && Math.abs(dyToOpp) < 38 && cpu.onGround && cpu.ai.dodgeCooldown <= 0) {
-          if (Math.random() < params.dodgeSkill * 0.85) {
-            cpu.ai.dodgeCooldown = 0.28;
+          if (Math.random() < effectiveDodgeSkill * 0.85) {
+            cpu.ai.dodgeCooldown = 0.22;
             cpu.ai.wantJump = true;
             cpu.ai.holdJumpTimer = params.jumpHold;
           }
@@ -1366,7 +1374,8 @@
 
         // 2. Strategic Decision Tick (Player-First Priority, Multi-Tier Platform Routing & Firing)
         if (cpu.ai.thinkTimer <= 0) {
-          cpu.ai.thinkTimer = params.react * (0.85 + Math.random() * 0.3);
+          const reactScale = isOneHitMode && (diff === 'Hard' || diff === 'Impossible' || diff === 'Extreme') ? 0.65 : 1.0;
+          cpu.ai.thinkTimer = params.react * reactScale * (0.85 + Math.random() * 0.3);
           cpu.ai.wantShoot = false;
 
           // Always prioritize hunting & engaging the human player; only grab power-up if very close & opportunistic
@@ -1461,8 +1470,10 @@
           const predictedOppY = oppCy + opponent.vy * travelTime * params.leadShot * 0.52;
           const verticalAlignment = Math.abs(predictedOppY - cpuCy);
 
-          // Hard, Impossible, and Extreme CPUs can charge up their 3-HP Mega-Laser when blocked or at long range
-          if (params.useCharge && (blockedBySolid || distToOpp > 360) && !incomingThreat && cpu.cooldown <= 0) {
+          // In 1-Hit Laser KO mode, every standard laser is an instant KO, so never waste 3s charging!
+          if (isOneHitMode) {
+            cpu.ai.wantCharge = false;
+          } else if (params.useCharge && (blockedBySolid || distToOpp > 360) && !incomingThreat && cpu.cooldown <= 0) {
             cpu.ai.wantCharge = true;
           }
 
@@ -1476,53 +1487,12 @@
           } else if (!blockedBySolid && verticalAlignment <= params.aimTolerance && Math.random() < params.shootChance) {
             cpu.facing = dxToOpp >= 0 ? 1 : -1;
             cpu.ai.wantShoot = true;
-          }
-        }
-
-        // 2B. Execute Persistent Multi-Tier Platform Hop (`navGoal`)
-        if (cpu.ai.navGoal) {
-          const hop = cpu.ai.navGoal;
-          hop.hopTimer += dt;
-
-          const onTargetPlatform = cpu.onGround &&
-            Math.abs(cpuBottom - hop.targetNode.y) <= 14 &&
-            cpuCx >= hop.targetNode.x1 - 8 &&
-            cpuCx <= hop.targetNode.x2 + 8;
-
-          if (onTargetPlatform || hop.hopTimer > 1.75) {
-            cpu.ai.navGoal = null;
-          } else if (hop.isDrop) {
-            const steerX = hop.landX - cpuCx;
-            cpu.ai.moveDir = Math.abs(steerX) > 10 ? Math.sign(steerX) : 0;
-            if (cpu.onGround && cpu.y < 350) {
-              cpu.ai.wantDrop = true;
-            }
-          } else if (!hop.jumping) {
-            const distToTakeoff = hop.takeoffX - cpuCx;
-            if (Math.abs(distToTakeoff) > 14) {
-              cpu.ai.moveDir = Math.sign(distToTakeoff);
-            } else if (cpu.onGround) {
-              hop.jumping = true;
-              hop.hopTimer = 0;
-              if (!hop.viaPad) {
-                cpu.ai.wantJump = true;
-                cpu.ai.holdJumpTimer = params.jumpHold;
-              }
-              const airDiff = hop.landX - cpuCx;
-              cpu.ai.moveDir = Math.abs(airDiff) > 6 ? Math.sign(airDiff) : 0;
-            }
-          } else {
-            if (cpuBottom > hop.targetNode.y - 6 && cpu.vy < 140) {
-              cpu.ai.holdJumpTimer = Math.max(cpu.ai.holdJumpTimer, 0.08);
-            }
-            const airDiff = hop.landX - cpuCx;
-            if (Math.abs(airDiff) > 8) {
-              cpu.ai.moveDir = Math.sign(airDiff);
-            } else {
-              cpu.ai.moveDir = 0;
-            }
-            if (cpu.onGround && hop.hopTimer > 0.25) {
-              cpu.ai.navGoal = null;
+          } else if (isOneHitMode && !blockedBySolid && (diff === 'Hard' || diff === 'Impossible' || diff === 'Extreme')) {
+            // In 1-Hit mode, fire snap-shots if opponent is jumping/falling into the CPU's horizontal firing line
+            const futureOppY = oppCy + opponent.vy * Math.min(0.35, travelTime);
+            if (Math.abs(futureOppY - cpuCy) <= params.aimTolerance + 4 && cpu.cooldown <= 0) {
+              cpu.facing = dxToOpp >= 0 ? 1 : -1;
+              cpu.ai.wantShoot = true;
             }
           }
         }
