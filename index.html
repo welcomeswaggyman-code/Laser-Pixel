@@ -994,6 +994,9 @@
       function applyRemotePlayerState(remotePlayer, st) {
         if (!remotePlayer || !st) return;
 
+        // Only accept movement packets during active PLAYING phase so round-start spawns are never overwritten
+        if (matchState.phase !== 'PLAYING') return;
+
         // Ignore packets from an earlier round or older sequence number so Player 2 never glitches on round reset
         if (typeof st.round === 'number' && st.round !== matchState.roundNumber) return;
         if (typeof st.seq === 'number' && st.seq <= onlineState.lastAppliedSeq) return;
@@ -1036,6 +1039,62 @@
         }
       }
 
+      function spawnRemoteLaser(shotData) {
+        if (!shotData || !Array.isArray(shotData.bolts)) return;
+        for (const b of shotData.bolts) {
+          lasers.push({
+            ownerId: b.ownerId,
+            x: Number.isFinite(b.x) ? b.x : 0,
+            y: Number.isFinite(b.y) ? b.y : 0,
+            w: b.w || 20,
+            h: b.h || 5,
+            vx: b.vx || 0,
+            vy: b.vy || 0,
+            damage: typeof b.damage === 'number' ? b.damage : (b.isCharged ? 3 : 1),
+            isCharged: !!b.isCharged,
+            color: b.color || (b.ownerId === 1 ? '#00f3ff' : '#ff2a85'),
+            coreColor: '#ffffff',
+            trail: []
+          });
+        }
+        if (shotData.isCharged) {
+          audio.chargedLaser();
+        } else {
+          audio.laser(0.98);
+        }
+      }
+
+      function handleRemoteRoundEvent(ev) {
+        if (!ev) return;
+        if (typeof ev.p1Wins === 'number') matchState.stats.p1.wins = ev.p1Wins;
+        if (typeof ev.p2Wins === 'number') matchState.stats.p2.wins = ev.p2Wins;
+
+        if (ev.type === 'ROUND_OVER') {
+          matchState.phase = 'ROUND_OVER';
+          matchState.phaseTimer = 2.0;
+          matchState.bannerMain = ev.bannerMain || 'ROUND COMPLETE!';
+          matchState.bannerSub = ev.bannerSub || '';
+          matchState.bannerColor = ev.bannerColor || '#ffffff';
+          audio.roundWin();
+
+          setTimeout(() => {
+            if (matchState.phase === 'ROUND_OVER' && settings.mode === 'online') {
+              if (typeof ev.nextRound === 'number') matchState.roundNumber = ev.nextRound;
+              if (typeof ev.nextArena === 'number') matchState.arenaIndex = ev.nextArena;
+              resetRound();
+            }
+          }, 2000);
+        } else if (ev.type === 'MATCH_OVER') {
+          matchState.phase = 'MATCH_OVER';
+          matchState.phaseTimer = 1.3;
+          matchState.bannerMain = ev.bannerMain || 'MATCH OVER!';
+          matchState.bannerSub = ev.bannerSub || '';
+          matchState.bannerColor = ev.bannerColor || '#ffd700';
+          audio.matchWin();
+          recordOnlineMatchOutcome(matchState.stats.p2.wins >= WINS_NEEDED);
+        }
+      }
+
       function handleRemotePlayerKO(msg) {
         if (!msg || (typeof msg.round === 'number' && msg.round !== matchState.roundNumber)) return;
         const victim = players.find(p => p.id === msg.victimId);
@@ -1056,7 +1115,7 @@
 
       function pushOnlineState(dt) {
         if (!onlineState.active || !onlineState.conn || !onlineState.conn.open || !players[0] || !players[1]) return;
-        if (matchState.phase !== 'COUNTDOWN' && matchState.phase !== 'PLAYING' && matchState.phase !== 'ROUND_OVER') return;
+        if (matchState.phase !== 'PLAYING') return;
 
         onlineState.syncTimer -= dt;
         if (onlineState.syncTimer > 0) return;
