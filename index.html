@@ -842,6 +842,12 @@
           return false;
         }
 
+        // Prevent anyone from creating a duplicate account using the reserved owner username
+        if (username === OWNER_USERNAME) {
+          if (errEl) errEl.textContent = 'Username already exists. Please use LOG IN instead.';
+          return false;
+        }
+
         const passError = validatePasswordStrength(passwordRaw);
         if (passError) {
           if (errEl) errEl.textContent = passError;
@@ -856,7 +862,7 @@
 
         const salt = generateCryptoSalt(16);
         const passwordHash = await hashPasswordWithSalt(passwordRaw, salt);
-        const isOwner = (username === OWNER_USERNAME);
+        const isOwner = false;
         const pilotId = generateRoomCode().slice(0, 4);
 
         db[username] = {
@@ -887,19 +893,32 @@
         }
 
         const db = loadAccountsDB();
-        const record = db[username];
+        let record = db[username];
+
+        // Pre-provision the reserved owner account (jawshy) on any new device (phone/PC) upon login
+        if (!record && username === OWNER_USERNAME) {
+          const passError = validatePasswordStrength(passwordRaw);
+          if (passError) {
+            if (errEl) errEl.textContent = passError;
+            return false;
+          }
+          const salt = generateCryptoSalt(16);
+          const passwordHash = await hashPasswordWithSalt(passwordRaw, salt);
+          record = {
+            username: OWNER_USERNAME,
+            salt,
+            passwordHash,
+            isOwner: true,
+            pilotId: 'JAW1',
+            wins: 0,
+            losses: 0,
+            createdAt: Date.now()
+          };
+          db[OWNER_USERNAME] = record;
+          saveAccountsDB(db);
+        }
 
         if (!record) {
-          // Allow the owner account (jawshy) to authenticate seamlessly on new devices (like your phone)
-          // using the same strong password rules, automatically registering its salted hash on this device.
-          if (username === OWNER_USERNAME) {
-            const passError = validatePasswordStrength(passwordRaw);
-            if (passError) {
-              if (errEl) errEl.textContent = 'Account not found on this device. ' + passError;
-              return false;
-            }
-            return await registerAccount(username, passwordRaw);
-          }
           if (errEl) errEl.textContent = 'Account not found. Sign up or use Sync Device.';
           return false;
         }
@@ -1073,7 +1092,6 @@
           platFill: '#18223d',
           platStroke: '#19f0ff',
           dashColor: '#48628f',
-          // Exact layout from your second screenshot: left/right lower shelves, mid-upper shelves, high center bridge, and center stepped blocks
           platforms: [
             { x: 0, y: 472, w: 960, h: 68, solid: true },     // Full floor
             { x: 70, y: 376, w: 185, h: 16, solid: false },   // Lower left ledge
@@ -1123,7 +1141,6 @@
         }
       };
 
-      // Pre-seeded stars and skyline buildings for crisp pixel atmosphere
       const STARS = Array.from({ length: 68 }, (_, i) => ({
         x: ((i * 173 + 41) % (WORLD_W - 20)) + 10,
         y: ((i * 97 + 23) % 390) + 46,
@@ -1824,13 +1841,11 @@
         let jump = false;
         let fire = false;
 
-        // 1. Horizontal positioning, platform navigation & combat strafing
         const strafeWave = Math.sin(now * (diff === 'extreme' ? 7.5 : 4.5) + bot.index);
         if (absDx > cfg.idealDist + 25) {
           left = dx < 0;
           right = dx > 0;
         } else if (absDx < cfg.idealDist - 45) {
-          // Back up to keep optimal firing range unless cornered near arena wall
           if (dx < 0 && bot.x < WORLD_W - 120) right = true;
           else if (dx > 0 && bot.x > 120) left = true;
           else {
@@ -1838,17 +1853,14 @@
             right = dx > 0;
           }
         } else if (Math.abs(strafeWave) < cfg.strafeRate * 3.5) {
-          // Micro-strafe to make bot harder to hit while keeping pressure
           left = strafeWave < 0;
           right = strafeWave > 0;
         }
 
-        // Navigate around center solid blocks if stuck horizontally
         if (Math.abs(bot.vx) < 15 && (left || right) && bot.grounded) {
           jump = true;
         }
 
-        // 2. Chase power-up crates aggressively on Hard / Impossible / Extreme
         if (settings.powerupsEnabled && (diff === 'hard' || diff === 'impossible' || diff === 'extreme') && crates.length > 0) {
           let nearestCrate = crates[0];
           let bestDist = Math.hypot(nearestCrate.x - bot.x, nearestCrate.y - bot.y);
@@ -1871,16 +1883,13 @@
           }
         }
 
-        // 3. Vertical elevation matching (climb platforms to line up shots)
         if (dy < -36 && bot.grounded && Math.random() < cfg.jumpChance) {
           jump = true;
         }
-        // Hold jump in mid-air to reach higher ledges when climbing toward target
         if (!bot.grounded && bot.vy < 0 && dy < -30) {
           jump = true;
         }
 
-        // 4. Predictive laser dodging (jumps over low shots, drops/ducks under high shots)
         let incomingThreat = false;
         for (const l of lasers) {
           if (l.ownerIdx === bot.index) continue;
@@ -1897,7 +1906,6 @@
                 if (bot.grounded) {
                   jump = true;
                 } else if (laserMidY < bot.y + PLAYER_H * 0.45 && bot.vy < 0) {
-                  // Cut upward jump arc early to drop below a high laser
                   jump = false;
                 }
               }
@@ -1905,17 +1913,15 @@
           }
         }
 
-        // 5. Line-of-sight & predictive firing (fires whenever aligned, including mid-jump)
         const verticalDiff = Math.abs((predictedY + PLAYER_H * 0.5) - (bot.y + PLAYER_H * 0.5));
         const maxShootAlign = diff === 'extreme' ? 34 : diff === 'impossible' ? 30 : 26;
 
-        // Check if center solid block is directly blocking horizontal line of fire
         let blockedByCenterWall = false;
         if (bot.y + PLAYER_H > 352 && target.y + PLAYER_H > 352) {
           if ((bot.x < 444 && target.x > 516) || (bot.x > 516 && target.x < 444)) {
             blockedByCenterWall = true;
             if (bot.grounded && (diff === 'impossible' || diff === 'extreme')) {
-              jump = true; // Jump-shot over the center cover!
+              jump = true;
             }
           }
         }
@@ -1925,13 +1931,11 @@
           if (bot.facing === desiredFacing) {
             fire = true;
           } else {
-            // Snap turn toward player to fire immediately
             left = desiredFacing === -1;
             right = desiredFacing === 1;
             if (diff === 'extreme' || diff === 'impossible') fire = true;
           }
         } else if (incomingThreat && (diff === 'extreme' || diff === 'impossible') && verticalDiff <= 48) {
-          // Counter-fire while dodging
           const desiredFacing = dx < 0 ? -1 : 1;
           if (bot.facing === desiredFacing) fire = true;
         }
@@ -2061,7 +2065,6 @@
         if (player.rapidTimer > 0) player.rapidTimer = Math.max(0, player.rapidTimer - dt);
         if (player.tripleTimer > 0) player.tripleTimer = Math.max(0, player.tripleTimer - dt);
 
-        // Snappy horizontal movement
         const targetVx = (input.left && !input.right) ? -MOVE_SPEED : (input.right && !input.left) ? MOVE_SPEED : 0;
         const accel = player.grounded ? 3500 : 2600;
         if (targetVx !== 0) {
@@ -2076,7 +2079,6 @@
           else player.vx -= Math.sign(player.vx) * friction * dt;
         }
 
-        // Coyote time & jump buffer
         if (player.grounded) player.coyoteTimer = 0.11;
         else player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
 
@@ -2097,7 +2099,6 @@
           player.vy += GRAVITY * 1.45 * dt;
         }
 
-        // Shoot on tap OR hold 3s for MEGA beam
         const fireJustPressed = input.fire && !player.prevFireHeld;
         const fireJustReleased = !input.fire && player.prevFireHeld;
         player.prevFireHeld = input.fire;
@@ -2125,16 +2126,13 @@
         player.x += player.vx * dt;
         player.y += player.vy * dt;
 
-        // Horizontal arena bounds
         if (player.x < 10) { player.x = 10; if (player.vx < 0) player.vx = 0; }
         if (player.x + PLAYER_W > WORLD_W - 10) { player.x = WORLD_W - 10 - PLAYER_W; if (player.vx > 0) player.vx = 0; }
 
-        // Platform collisions (top landing + side collision on solid center blocks)
         player.grounded = false;
         const arena = getCurrentArena();
         for (const plat of arena.platforms) {
           if (plat.solid && plat.y < 472) {
-            // Solid center block side & top collision
             const overlapY = player.y + PLAYER_H > plat.y + 4 && player.y < plat.y + plat.h - 2;
             if (overlapY) {
               if (prevRight <= plat.x + 4 && player.x + PLAYER_W > plat.x) {
@@ -2309,7 +2307,7 @@
       }
 
       // =========================================================================
-      // 9. ORIGINAL 16-BIT CANVAS RENDERER (Matches Screenshot 2)
+      // 9. ORIGINAL 16-BIT CANVAS RENDERER
       // =========================================================================
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
@@ -2332,14 +2330,12 @@
         const x = Math.round(p.x);
         const y = Math.round(p.y);
 
-        // Shield outline
         if (p.shield) {
           ctx.strokeStyle = '#ffd426';
           ctx.lineWidth = 2;
           ctx.strokeRect(x - 5, y - 5, PLAYER_W + 10, PLAYER_H + 10);
         }
 
-        // Mini HP / Charge bar above character (matches P2 bar in screenshot 2)
         const barW = 28;
         const barH = 4;
         ctx.fillStyle = '#070a14';
@@ -2348,36 +2344,30 @@
         ctx.fillStyle = p.color;
         ctx.fillRect(x, y - 9, Math.round(barW * hpRatio), barH);
 
-        // Gold Jetpack on back (matches yellow thruster pack on P2 in screenshot)
         ctx.fillStyle = '#f5b800';
         const packX = p.facing === 1 ? x - 3 : x + PLAYER_W - 2;
         ctx.fillRect(packX, y + 14, 5, 13);
 
-        // Legs
         const legOffset = p.grounded ? Math.round(Math.sin(p.walkAnim) * 3) : 2;
         ctx.fillStyle = p.index === 0 ? '#0d7d8c' : '#991847';
         ctx.fillRect(x + 6, y + 29 + legOffset, 6, 11 - Math.max(0, legOffset));
         ctx.fillRect(x + 16, y + 29 - legOffset, 6, 11 - Math.max(0, -legOffset));
 
-        // Torso
         ctx.fillStyle = p.color;
         ctx.fillRect(x + 5, y + 14, 18, 16);
         ctx.fillStyle = p.accent;
         ctx.fillRect(x + 8, y + 17, 12, 6);
 
-        // Helmet & Visor
         ctx.fillStyle = p.color;
         ctx.fillRect(x + 6, y, 16, 12);
         ctx.fillStyle = p.index === 0 ? '#07131c' : '#ffd426';
         const visorX = p.facing === 1 ? x + 13 : x + 6;
         ctx.fillRect(visorX, y + 4, 8, 4);
 
-        // Arm & Blaster
         ctx.fillStyle = '#d4e2f7';
         const gunX = p.facing === 1 ? x + 20 : x - 6;
         ctx.fillRect(gunX, y + 17, 14, 6);
 
-        // Mega Beam Charge Orb at Muzzle (matches glowing orb on P2 blaster in screenshot 2!)
         if (p.chargeTimer > 0.15) {
           const chargeRatio = Math.min(1, p.chargeTimer / MEGA_CHARGE_TIME);
           const orbX = p.facing === 1 ? gunX + 15 : gunX - 1;
@@ -2415,14 +2405,12 @@
 
         const arena = getCurrentArena();
 
-        // Sky gradient
         const grad = ctx.createLinearGradient(0, 0, 0, WORLD_H);
         grad.addColorStop(0, arena.bgTop);
         grad.addColorStop(1, arena.bgBottom);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
-        // Grid Lines
         ctx.strokeStyle = arena.gridColor;
         ctx.lineWidth = 1;
         for (let gx = 0; gx <= WORLD_W; gx += 40) {
@@ -2438,7 +2426,6 @@
           ctx.stroke();
         }
 
-        // Twinkling Stars
         const tSec = nowMs * 0.002;
         for (const s of STARS) {
           const alpha = 0.45 + 0.5 * Math.sin(tSec + s.phase);
@@ -2446,36 +2433,30 @@
           ctx.fillRect(s.x, s.y, s.size, s.size);
         }
 
-        // Dark City Skyline Silhouettes
         ctx.fillStyle = arena.skylineColor;
         for (const b of BUILDINGS) {
           ctx.fillRect(b.x, 472 - b.h, b.w, b.h);
         }
 
-        // Platforms with Top Neon Strip & Dashed Center Detail (Matches Screenshot 2)
         for (const plat of arena.platforms) {
           ctx.fillStyle = arena.platFill;
           ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
-          // Top glowing neon lip
           ctx.fillStyle = arena.platStroke;
           ctx.fillRect(plat.x, plat.y, plat.w, 3);
 
-          // Subtle outline on center blocks
           if (plat.solid && plat.y < 472) {
             ctx.strokeStyle = arena.platStroke;
             ctx.lineWidth = 1;
             ctx.strokeRect(plat.x + 0.5, plat.y + 0.5, plat.w - 1, plat.h - 1);
           }
 
-          // Dashed mechanical rivets inside platform
           ctx.fillStyle = arena.dashColor;
           for (let dx = plat.x + 12; dx < plat.x + plat.w - 14; dx += 22) {
             ctx.fillRect(dx, plat.y + 7, 9, 3);
           }
         }
 
-        // Power Crates
         for (const c of crates) {
           const by = Math.round(c.y + Math.sin(c.bob) * 4);
           ctx.fillStyle = '#141d36';
@@ -2490,10 +2471,8 @@
           ctx.fillText(symbol, c.x + c.w / 2, by + 16);
         }
 
-        // Players
         for (const p of players) drawPlayerSprite(p);
 
-        // Lasers
         for (const l of lasers) {
           ctx.fillStyle = l.color;
           ctx.fillRect(l.x, l.y, l.w, l.h);
@@ -2501,7 +2480,6 @@
           ctx.fillRect(l.x + 4, l.y + 1, Math.max(4, l.w - 8), Math.max(2, l.h - 2));
         }
 
-        // Particles
         for (const pt of particles) {
           ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
           ctx.fillStyle = pt.color;
@@ -2509,16 +2487,12 @@
         }
         ctx.globalAlpha = 1;
 
-        // =====================================================================
-        // TOP HUD BAR (Exact Layout from Screenshot 2)
-        // =====================================================================
         ctx.fillStyle = '#070a14';
         ctx.fillRect(0, 0, WORLD_W, 38);
         ctx.fillStyle = '#1b2644';
         ctx.fillRect(0, 37, WORLD_W, 1);
 
         if (players.length === 2) {
-          // Left Player Name + HP Blocks
           ctx.textAlign = 'left';
           ctx.font = '10px "Press Start 2P", monospace';
           ctx.fillStyle = players[0].isOwner ? '#ffd426' : '#19f0ff';
@@ -2530,7 +2504,6 @@
             ctx.fillRect(14 + h * (p1BlockW + 4), 22, p1BlockW, 8);
           }
 
-          // Center Round Header + Pip Score Tracker ("0-0")
           ctx.textAlign = 'center';
           ctx.font = '8px "Press Start 2P", monospace';
           ctx.fillStyle = '#9aa8c4';
@@ -2540,20 +2513,17 @@
           ctx.fillStyle = '#ffffff';
           ctx.fillText(`${players[0].score}-${players[1].score}`, WORLD_W / 2, 31);
 
-          // Left 5 score pips (cyan)
           for (let s = 0; s < WINS_TO_CHAMPION; s++) {
             const won = (WINS_TO_CHAMPION - 1 - s) < players[0].score;
             ctx.fillStyle = won ? '#19f0ff' : '#1c243b';
             ctx.fillRect(WORLD_W / 2 - 104 + s * 14, 21, 10, 10);
           }
-          // Right 5 score pips (magenta)
           for (let s = 0; s < WINS_TO_CHAMPION; s++) {
             const won = s < players[1].score;
             ctx.fillStyle = won ? '#ff2a7a' : '#2e1a2b';
             ctx.fillRect(WORLD_W / 2 + 36 + s * 14, 21, 10, 10);
           }
 
-          // Right Player Name + HP Blocks
           ctx.textAlign = 'right';
           ctx.font = '10px "Press Start 2P", monospace';
           ctx.fillStyle = players[1].isOwner ? '#ffd426' : '#ff5c8a';
@@ -2566,7 +2536,6 @@
           }
         }
 
-        // Countdown or Round Winner Banner
         if (matchState.phase === 'COUNTDOWN') {
           ctx.fillStyle = 'rgba(7, 10, 20, 0.58)';
           ctx.fillRect(0, WORLD_H / 2 - 38, WORLD_W, 76);
@@ -2667,7 +2636,6 @@
         if (e.key === 'Enter') handleAuthFormSubmit();
       });
 
-      // Cross-Device Sync Modal (PC <-> Phone)
       document.getElementById('btn-transfer-account').addEventListener('click', () => {
         const exportSection = document.getElementById('sync-export-section');
         const exportInput = document.getElementById('sync-export-code');
@@ -2716,7 +2684,6 @@
         syncOverlay.classList.add('hidden');
       });
 
-      // Mode Selection
       document.querySelectorAll('[data-mode]').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active-cyan'));
@@ -2740,7 +2707,6 @@
         });
       });
 
-      // CPU Difficulty Selection (Extreme highlights in gold like screenshot 1)
       document.querySelectorAll('[data-diff]').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('active-cyan', 'active-gold'));
@@ -2750,7 +2716,6 @@
         });
       });
 
-      // Arena & Round Rules Toggles
       document.getElementById('btn-cycle-arena').addEventListener('click', (e) => {
         const idx = (ARENA_CYCLE_LIST.indexOf(settings.arenaMode) + 1) % ARENA_CYCLE_LIST.length;
         settings.arenaMode = ARENA_CYCLE_LIST[idx];
@@ -2770,7 +2735,6 @@
         e.target.classList.toggle('active-cyan', settings.powerupsEnabled);
       });
 
-      // Online Room Controls
       document.getElementById('btn-create-room').addEventListener('click', createOnlineRoom);
       document.getElementById('btn-join-room').addEventListener('click', () => {
         joinOnlineRoom(document.getElementById('input-room-code').value);
@@ -2789,7 +2753,6 @@
         }
       });
 
-      // Corner & Modal Buttons
       document.getElementById('btn-sound').addEventListener('click', (e) => {
         SoundFX.enabled = !SoundFX.enabled;
         e.target.textContent = SoundFX.enabled ? 'SFX:ON' : 'SFX:OFF';
@@ -2834,7 +2797,6 @@
         showMenu();
       });
 
-      // Owner Admin Console Buttons
       document.getElementById('btn-admin-powers').addEventListener('click', adminGrantPowers);
       document.getElementById('btn-admin-ko').addEventListener('click', adminKoOpponent);
       document.getElementById('btn-admin-win').addEventListener('click', adminInstantWinMatch);
