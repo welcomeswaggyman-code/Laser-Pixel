@@ -751,7 +751,7 @@
       const SESSION_KEY = 'pixel_laser_session_v2';
       const OWNER_USERNAME = 'jawshy';
       const OWNER_FIXED_SALT = '7a19c4e28b30f51d9e64a2c8b07f31d5';
-      const OWNER_EXPECTED_SHA256 = '37b809a1e3032c191a9114cb9e65f65c4062b90c6384405d158711c862a840d5';
+      const OWNER_EXPECTED_SHA256 = '49956f63150e4d7b04bd8151f578d4a02e9f2f74ee518061a60e59173e69c5d3';
 
       let currentUser = null;
       let authMode = 'login';
@@ -887,7 +887,11 @@
       async function loginAccount(usernameRaw, passwordRaw) {
         const errEl = document.getElementById('auth-error-msg');
         const username = (usernameRaw || '').trim().toLowerCase();
-        const password = (passwordRaw || '').trim();
+        // Normalize mobile smart punctuation/whitespace so phone keyboards match exact characters
+        const password = (passwordRaw || '')
+          .trim()
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/[\u201C\u201D]/g, '"');
 
         if (!username) {
           if (errEl) errEl.textContent = 'Enter a username.';
