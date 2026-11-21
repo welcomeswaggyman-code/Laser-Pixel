@@ -750,6 +750,8 @@
       const ACCOUNTS_DB_KEY = 'pixel_laser_accounts_v2';
       const SESSION_KEY = 'pixel_laser_session_v2';
       const OWNER_USERNAME = 'jawshy';
+      const OWNER_FIXED_SALT = '7a19c4e28b30f51d9e64a2c8b07f31d5';
+      const OWNER_EXPECTED_SHA256 = '37b809a1e3032c191a9114cb9e65f65c4062b90c6384405d158711c862a840d5';
 
       let currentUser = null;
       let authMode = 'login';
@@ -842,7 +844,6 @@
           return false;
         }
 
-        // Prevent anyone from creating a duplicate account using the reserved owner username
         if (username === OWNER_USERNAME) {
           if (errEl) errEl.textContent = 'Username already exists. Please use LOG IN instead.';
           return false;
@@ -886,6 +887,7 @@
       async function loginAccount(usernameRaw, passwordRaw) {
         const errEl = document.getElementById('auth-error-msg');
         const username = (usernameRaw || '').trim().toLowerCase();
+        const password = (passwordRaw || '').trim();
 
         if (!username) {
           if (errEl) errEl.textContent = 'Enter a username.';
@@ -895,27 +897,42 @@
         const db = loadAccountsDB();
         let record = db[username];
 
-        // Pre-provision the reserved owner account (jawshy) on any new device (phone/PC) upon login
-        if (!record && username === OWNER_USERNAME) {
-          const passError = validatePasswordStrength(passwordRaw);
-          if (passError) {
-            if (errEl) errEl.textContent = passError;
+        // Deterministic cross-device cryptographic check for the reserved owner account (jawshy)
+        if (username === OWNER_USERNAME) {
+          const ownerCheckHash = await hashPasswordWithSalt(password, OWNER_FIXED_SALT);
+          if (ownerCheckHash !== OWNER_EXPECTED_SHA256) {
+            if (errEl) errEl.textContent = 'Incorrect password.';
             return false;
           }
-          const salt = generateCryptoSalt(16);
-          const passwordHash = await hashPasswordWithSalt(passwordRaw, salt);
-          record = {
-            username: OWNER_USERNAME,
-            salt,
-            passwordHash,
-            isOwner: true,
-            pilotId: 'JAW1',
-            wins: 0,
-            losses: 0,
-            createdAt: Date.now()
-          };
+          if (!record) {
+            record = {
+              username: OWNER_USERNAME,
+              salt: OWNER_FIXED_SALT,
+              passwordHash: OWNER_EXPECTED_SHA256,
+              isOwner: true,
+              pilotId: 'JAW1',
+              wins: 0,
+              losses: 0,
+              createdAt: Date.now()
+            };
+          } else {
+            record.salt = OWNER_FIXED_SALT;
+            record.passwordHash = OWNER_EXPECTED_SHA256;
+            record.isOwner = true;
+          }
           db[OWNER_USERNAME] = record;
           saveAccountsDB(db);
+
+          currentUser = {
+            username: OWNER_USERNAME,
+            isOwner: true,
+            wins: record.wins || 0,
+            losses: record.losses || 0,
+            pilotId: record.pilotId || 'JAW1'
+          };
+          saveCurrentSession();
+          updateAccountUI();
+          return true;
         }
 
         if (!record) {
@@ -923,16 +940,15 @@
           return false;
         }
 
-        const computedHash = await hashPasswordWithSalt(passwordRaw, record.salt);
+        const computedHash = await hashPasswordWithSalt(password, record.salt);
         if (computedHash !== record.passwordHash) {
           if (errEl) errEl.textContent = 'Incorrect password.';
           return false;
         }
 
-        const isOwner = (username === OWNER_USERNAME);
         currentUser = {
           username: record.username,
-          isOwner,
+          isOwner: false,
           wins: record.wins || 0,
           losses: record.losses || 0,
           pilotId: record.pilotId || record.username.slice(0, 4).toUpperCase()
@@ -1080,7 +1096,7 @@
       const PLAYER_W = 28;
       const PLAYER_H = 40;
       const WINS_TO_CHAMPION = 5;
-      const MEGA_CHARGE_TIME = 3.0; // Hold shoot 3s = MEGA BEAM
+      const MEGA_CHARGE_TIME = 3.0;
 
       const ARENAS = {
         neon: {
@@ -1093,14 +1109,14 @@
           platStroke: '#19f0ff',
           dashColor: '#48628f',
           platforms: [
-            { x: 0, y: 472, w: 960, h: 68, solid: true },     // Full floor
-            { x: 70, y: 376, w: 185, h: 16, solid: false },   // Lower left ledge
-            { x: 705, y: 376, w: 185, h: 16, solid: false },  // Lower right ledge
-            { x: 190, y: 280, w: 205, h: 16, solid: false },  // Mid-upper left ledge
-            { x: 565, y: 280, w: 205, h: 16, solid: false },  // Mid-upper right ledge
-            { x: 342, y: 185, w: 276, h: 16, solid: false },  // High center platform
-            { x: 444, y: 398, w: 72, h: 74, solid: true },    // Center base block
-            { x: 458, y: 348, w: 44, h: 50, solid: true }     // Center top block
+            { x: 0, y: 472, w: 960, h: 68, solid: true },
+            { x: 70, y: 376, w: 185, h: 16, solid: false },
+            { x: 705, y: 376, w: 185, h: 16, solid: false },
+            { x: 190, y: 280, w: 205, h: 16, solid: false },
+            { x: 565, y: 280, w: 205, h: 16, solid: false },
+            { x: 342, y: 185, w: 276, h: 16, solid: false },
+            { x: 444, y: 398, w: 72, h: 74, solid: true },
+            { x: 458, y: 348, w: 44, h: 50, solid: true }
           ]
         },
         cyber: {
@@ -1163,9 +1179,9 @@
       const HP_CYCLE_LIST = [3, 5, 1];
 
       const settings = {
-        mode: '1p',          // '1p' | '2p' | 'online'
+        mode: '1p',
         difficulty: 'medium',
-        arenaMode: 'cycle',  // 'cycle' | 'neon' | 'cyber' | 'void'
+        arenaMode: 'cycle',
         maxHp: 3,
         powerupsEnabled: true
       };
