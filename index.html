@@ -622,11 +622,11 @@
         </p>
         <div style="display: flex; flex-direction: column; gap: 5px;">
           <label style="font-size: 8px; color: var(--cyan);">USERNAME (3-14 CHARS)</label>
-          <input id="auth-username" class="pixel-input" type="text" maxlength="14" placeholder="e.g. jawshy" />
+          <input id="auth-username" class="pixel-input" type="text" maxlength="14" placeholder="USERNAME" autocomplete="off" />
         </div>
         <div style="display: flex; flex-direction: column; gap: 5px;">
           <label style="font-size: 8px; color: var(--cyan);">PASSWORD (10+ CHARS, A-Z, a-z, 0-9, SYMBOL)</label>
-          <input id="auth-password" class="pixel-input" type="password" maxlength="64" placeholder="••••••••••" />
+          <input id="auth-password" class="pixel-input" type="password" maxlength="64" placeholder="PASSWORD" autocomplete="new-password" />
         </div>
         <div id="auth-error-msg" style="font-size: 7.5px; color: var(--pink); line-height: 1.5; min-height: 14px;"></div>
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -1712,56 +1712,136 @@
         }
         const diff = settings.difficulty;
         const profiles = {
-          easy:       { react: 0.42, jumpProb: 0.08, dodgeProb: 0.25, fireProb: 0.14, leadAim: 0.00, idealDist: 220 },
-          medium:     { react: 0.72, jumpProb: 0.13, dodgeProb: 0.45, fireProb: 0.24, leadAim: 0.08, idealDist: 195 },
-          hard:       { react: 0.90, jumpProb: 0.19, dodgeProb: 0.70, fireProb: 0.36, leadAim: 0.16, idealDist: 175 },
-          impossible: { react: 0.97, jumpProb: 0.26, dodgeProb: 0.88, fireProb: 0.58, leadAim: 0.24, idealDist: 160 },
-          extreme:    { react: 1.00, jumpProb: 0.36, dodgeProb: 0.99, fireProb: 0.90, leadAim: 0.34, idealDist: 140 }
+          easy:       { react: 0.45, jumpChance: 0.03, dodgeRange: 95,  dodgeSkill: 0.25, fireRate: 0.14, leadAim: 0.00, idealDist: 230, strafeRate: 0.01 },
+          medium:     { react: 0.72, jumpChance: 0.07, dodgeRange: 145, dodgeSkill: 0.55, fireRate: 0.28, leadAim: 0.08, idealDist: 200, strafeRate: 0.03 },
+          hard:       { react: 0.90, jumpChance: 0.14, dodgeRange: 195, dodgeSkill: 0.80, fireRate: 0.48, leadAim: 0.16, idealDist: 175, strafeRate: 0.06 },
+          impossible: { react: 0.98, jumpChance: 0.24, dodgeRange: 250, dodgeSkill: 0.94, fireRate: 0.78, leadAim: 0.24, idealDist: 155, strafeRate: 0.11 },
+          extreme:    { react: 1.00, jumpChance: 0.42, dodgeRange: 310, dodgeSkill: 1.00, fireRate: 1.00, leadAim: 0.34, idealDist: 145, strafeRate: 0.18 }
         };
         const cfg = profiles[diff] || profiles.medium;
 
+        const now = performance.now() * 0.001;
         const predictedX = target.x + target.vx * cfg.leadAim;
         const predictedY = target.y + target.vy * cfg.leadAim;
         const dx = predictedX - bot.x;
         const dy = predictedY - bot.y;
+        const absDx = Math.abs(dx);
 
-        let left = false, right = false, jump = false, fire = false;
+        let left = false;
+        let right = false;
+        let jump = false;
+        let fire = false;
 
-        if (Math.abs(dx) > cfg.idealDist) {
-          if (dx < 0) left = true;
-          else right = true;
-        } else if (Math.abs(dx) < 85 && diff !== 'extreme') {
-          if (dx < 0) right = true;
-          else left = true;
-        }
-
-        if (settings.powerupsEnabled && (diff === 'hard' || diff === 'impossible' || diff === 'extreme') && crates.length > 0) {
-          const crate = crates[0];
-          const cdx = crate.x - bot.x;
-          if (Math.abs(cdx) > 16) {
-            left = cdx < 0;
-            right = cdx > 0;
-          }
-          if (crate.y < bot.y - 30 && bot.grounded) jump = true;
-        }
-
-        if (dy < -42 && bot.grounded && Math.random() < cfg.react * cfg.jumpProb) jump = true;
-
-        const dodgeRange = diff === 'extreme' ? 195 : diff === 'impossible' ? 165 : 130;
-        for (const l of lasers) {
-          if (l.ownerIdx !== bot.index && Math.abs(l.x - bot.x) < dodgeRange && Math.abs(l.y - (bot.y + 20)) < 32) {
-            if (bot.grounded && Math.random() < cfg.react * cfg.dodgeProb) jump = true;
-          }
-        }
-
-        const aimTolerance = diff === 'extreme' ? 50 : diff === 'impossible' ? 44 : 38;
-        if (Math.abs(dy) < aimTolerance && Math.random() < cfg.react * cfg.fireProb) {
-          if ((dx < 0 && bot.facing === -1) || (dx > 0 && bot.facing === 1) || diff === 'easy') {
-            fire = true;
-          } else {
+        // 1. Horizontal positioning, platform navigation & combat strafing
+        const strafeWave = Math.sin(now * (diff === 'extreme' ? 7.5 : 4.5) + bot.index);
+        if (absDx > cfg.idealDist + 25) {
+          left = dx < 0;
+          right = dx > 0;
+        } else if (absDx < cfg.idealDist - 45) {
+          // Back up to keep optimal firing range unless cornered near arena wall
+          if (dx < 0 && bot.x < WORLD_W - 120) right = true;
+          else if (dx > 0 && bot.x > 120) left = true;
+          else {
             left = dx < 0;
             right = dx > 0;
           }
+        } else if (Math.abs(strafeWave) < cfg.strafeRate * 3.5) {
+          // Micro-strafe to make bot harder to hit while keeping pressure
+          left = strafeWave < 0;
+          right = strafeWave > 0;
+        }
+
+        // Navigate around center solid blocks if stuck horizontally
+        if (Math.abs(bot.vx) < 15 && (left || right) && bot.grounded) {
+          jump = true;
+        }
+
+        // 2. Chase power-up crates aggressively on Hard / Impossible / Extreme
+        if (settings.powerupsEnabled && (diff === 'hard' || diff === 'impossible' || diff === 'extreme') && crates.length > 0) {
+          let nearestCrate = crates[0];
+          let bestDist = Math.hypot(nearestCrate.x - bot.x, nearestCrate.y - bot.y);
+          for (let i = 1; i < crates.length; i++) {
+            const d = Math.hypot(crates[i].x - bot.x, crates[i].y - bot.y);
+            if (d < bestDist) {
+              bestDist = d;
+              nearestCrate = crates[i];
+            }
+          }
+          if (bestDist < (diff === 'extreme' ? 420 : 300)) {
+            const cdx = nearestCrate.x - bot.x;
+            if (Math.abs(cdx) > 12) {
+              left = cdx < 0;
+              right = cdx > 0;
+            }
+            if (nearestCrate.y < bot.y - 24 && bot.grounded) {
+              jump = true;
+            }
+          }
+        }
+
+        // 3. Vertical elevation matching (climb platforms to line up shots)
+        if (dy < -36 && bot.grounded && Math.random() < cfg.jumpChance) {
+          jump = true;
+        }
+        // Hold jump in mid-air to reach higher ledges when climbing toward target
+        if (!bot.grounded && bot.vy < 0 && dy < -30) {
+          jump = true;
+        }
+
+        // 4. Predictive laser dodging (jumps over low shots, drops/ducks under high shots)
+        let incomingThreat = false;
+        for (const l of lasers) {
+          if (l.ownerIdx === bot.index) continue;
+          const distX = l.x - bot.x;
+          const movingTowardBot = (l.vx > 0 && distX < 25 && distX > -cfg.dodgeRange) ||
+                                  (l.vx < 0 && distX > -25 && distX < cfg.dodgeRange);
+          if (movingTowardBot) {
+            const laserMidY = l.y + l.h * 0.5;
+            const botTop = bot.y - 6;
+            const botBottom = bot.y + PLAYER_H + 6;
+            if (laserMidY >= botTop && laserMidY <= botBottom) {
+              incomingThreat = true;
+              if (Math.random() < cfg.dodgeSkill) {
+                if (bot.grounded) {
+                  jump = true;
+                } else if (laserMidY < bot.y + PLAYER_H * 0.45 && bot.vy < 0) {
+                  // Cut upward jump arc early to drop below a high laser
+                  jump = false;
+                }
+              }
+            }
+          }
+        }
+
+        // 5. Line-of-sight & predictive firing (fires whenever aligned, including mid-jump)
+        const verticalDiff = Math.abs((predictedY + PLAYER_H * 0.5) - (bot.y + PLAYER_H * 0.5));
+        const maxShootAlign = diff === 'extreme' ? 34 : diff === 'impossible' ? 30 : 26;
+
+        // Check if center solid block is directly blocking horizontal line of fire
+        let blockedByCenterWall = false;
+        if (bot.y + PLAYER_H > 352 && target.y + PLAYER_H > 352) {
+          if ((bot.x < 444 && target.x > 516) || (bot.x > 516 && target.x < 444)) {
+            blockedByCenterWall = true;
+            if (bot.grounded && (diff === 'impossible' || diff === 'extreme')) {
+              jump = true; // Jump-shot over the center cover!
+            }
+          }
+        }
+
+        if (!blockedByCenterWall && verticalDiff <= maxShootAlign && Math.random() < cfg.fireRate) {
+          const desiredFacing = dx < 0 ? -1 : 1;
+          if (bot.facing === desiredFacing) {
+            fire = true;
+          } else {
+            // Snap turn toward player to fire immediately
+            left = desiredFacing === -1;
+            right = desiredFacing === 1;
+            if (diff === 'extreme' || diff === 'impossible') fire = true;
+          }
+        } else if (incomingThreat && (diff === 'extreme' || diff === 'impossible') && verticalDiff <= 48) {
+          // Counter-fire while dodging
+          const desiredFacing = dx < 0 ? -1 : 1;
+          if (bot.facing === desiredFacing) fire = true;
         }
 
         return { left, right, jump, fire };
