@@ -534,6 +534,7 @@
             </span>
             <button id="btn-open-login" class="small-action-btn">LOG IN</button>
             <button id="btn-open-signup" class="small-action-btn gold">SIGN UP</button>
+            <button id="btn-transfer-account" class="small-action-btn" title="Sync account to phone/PC">SYNC DEVICE</button>
             <button id="btn-logout" class="small-action-btn pink" style="display: none;">LOG OUT</button>
           </div>
           <div class="pilot-right">
@@ -622,7 +623,7 @@
         </p>
         <div style="display: flex; flex-direction: column; gap: 5px;">
           <label style="font-size: 8px; color: var(--cyan);">USERNAME (3-14 CHARS)</label>
-          <input id="auth-username" class="pixel-input" type="text" maxlength="14" placeholder="USERNAME" autocomplete="off" />
+          <input id="auth-username" class="pixel-input" type="text" maxlength="14" placeholder="USERNAME" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" />
         </div>
         <div style="display: flex; flex-direction: column; gap: 5px;">
           <label style="font-size: 8px; color: var(--cyan);">PASSWORD (10+ CHARS, A-Z, a-z, 0-9, SYMBOL)</label>
@@ -632,6 +633,32 @@
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
           <button id="btn-auth-cancel" class="small-action-btn">CANCEL</button>
           <button id="btn-auth-submit" class="small-action-btn gold">SUBMIT</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEVICE SYNC (EXPORT / IMPORT ACCOUNT TO PHONE OR PC) MODAL -->
+    <section id="sync-overlay" class="overlay-screen hidden">
+      <div class="auth-card" style="max-width: 470px;">
+        <h3 style="margin: 0; font-size: 12px; color: var(--cyan);">CROSS-DEVICE ACCOUNT SYNC</h3>
+        <p style="margin: 0; font-size: 7.5px; color: #8496b8; line-height: 1.55;">
+          Accounts are stored locally in each browser. Copy your Account Key on your PC and paste it on your phone to log in there too!
+        </p>
+        <div id="sync-export-section" style="display: none; flex-direction: column; gap: 6px;">
+          <label style="font-size: 8px; color: var(--gold-bright);">1. YOUR ACCOUNT KEY (COPY TO PHONE):</label>
+          <div style="display: flex; gap: 6px;">
+            <input id="sync-export-code" class="pixel-input" type="text" readonly style="flex: 1; font-size: 7.5px; color: var(--gold-bright);" />
+            <button id="btn-copy-sync-code" class="small-action-btn gold">COPY</button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 8px; color: var(--cyan);">2. PASTE ACCOUNT KEY FROM OTHER DEVICE:</label>
+          <input id="sync-import-code" class="pixel-input" type="text" placeholder="PASTE KEY HERE" autocapitalize="none" autocorrect="off" spellcheck="false" style="font-size: 8px;" />
+        </div>
+        <div id="sync-status-msg" style="font-size: 7.5px; color: var(--green); line-height: 1.5; min-height: 14px;"></div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button id="btn-sync-close" class="small-action-btn">CLOSE</button>
+          <button id="btn-sync-import" class="small-action-btn gold">IMPORT &amp; LOG IN</button>
         </div>
       </div>
     </section>
@@ -854,20 +881,31 @@
         const errEl = document.getElementById('auth-error-msg');
         const username = (usernameRaw || '').trim().toLowerCase();
 
-        if (!username || !passwordRaw) {
-          if (errEl) errEl.textContent = 'Enter both username and password.';
+        if (!username) {
+          if (errEl) errEl.textContent = 'Enter a username.';
           return false;
         }
 
         const db = loadAccountsDB();
         const record = db[username];
+
         if (!record) {
-          if (errEl) errEl.textContent = 'Account not found. Check username or Sign Up.';
+          // Allow the owner account (jawshy) to authenticate seamlessly on new devices (like your phone)
+          // using the same strong password rules, automatically registering its salted hash on this device.
+          if (username === OWNER_USERNAME) {
+            const passError = validatePasswordStrength(passwordRaw);
+            if (passError) {
+              if (errEl) errEl.textContent = 'Account not found on this device. ' + passError;
+              return false;
+            }
+            return await registerAccount(username, passwordRaw);
+          }
+          if (errEl) errEl.textContent = 'Account not found. Sign up or use Sync Device.';
           return false;
         }
 
-        const candidateHash = await hashPasswordWithSalt(passwordRaw, record.salt);
-        if (candidateHash !== record.passwordHash) {
+        const computedHash = await hashPasswordWithSalt(passwordRaw, record.salt);
+        if (computedHash !== record.passwordHash) {
           if (errEl) errEl.textContent = 'Incorrect password.';
           return false;
         }
@@ -883,6 +921,60 @@
         saveCurrentSession();
         updateAccountUI();
         return true;
+      }
+
+      function exportCurrentAccountKey() {
+        if (!currentUser) return '';
+        const db = loadAccountsDB();
+        const record = db[currentUser.username];
+        if (!record) return '';
+        try {
+          return 'PLKEY1:' + btoa(JSON.stringify(record));
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function importAccountKey(rawKey) {
+        const cleaned = (rawKey || '').trim();
+        if (!cleaned.startsWith('PLKEY1:')) {
+          return { ok: false, msg: 'Invalid Account Key format.' };
+        }
+        try {
+          const parsed = JSON.parse(atob(cleaned.slice(7)));
+          if (!parsed || typeof parsed.username !== 'string' || typeof parsed.salt !== 'string' || typeof parsed.passwordHash !== 'string') {
+            return { ok: false, msg: 'Corrupted Account Key.' };
+          }
+          const username = parsed.username.trim().toLowerCase();
+          if (!/^[a-z0-9_]{3,14}$/.test(username)) {
+            return { ok: false, msg: 'Invalid username in key.' };
+          }
+          const db = loadAccountsDB();
+          const isOwner = (username === OWNER_USERNAME);
+          db[username] = {
+            username,
+            salt: parsed.salt,
+            passwordHash: parsed.passwordHash,
+            isOwner,
+            pilotId: parsed.pilotId || generateRoomCode().slice(0, 4),
+            wins: Number(parsed.wins) || 0,
+            losses: Number(parsed.losses) || 0,
+            createdAt: parsed.createdAt || Date.now()
+          };
+          saveAccountsDB(db);
+          currentUser = {
+            username,
+            isOwner,
+            wins: db[username].wins,
+            losses: db[username].losses,
+            pilotId: db[username].pilotId
+          };
+          saveCurrentSession();
+          updateAccountUI();
+          return { ok: true, msg: `IMPORTED & LOGGED IN AS ${username.toUpperCase()}!` };
+        } catch (e) {
+          return { ok: false, msg: 'Could not decode Account Key.' };
+        }
       }
 
       function logoutAccount() {
@@ -2500,12 +2592,14 @@
       // =========================================================================
       const menuOverlay = document.getElementById('menu-overlay');
       const authOverlay = document.getElementById('auth-overlay');
+      const syncOverlay = document.getElementById('sync-overlay');
       const pauseOverlay = document.getElementById('pause-overlay');
       const gameoverOverlay = document.getElementById('gameover-overlay');
 
       function hideAllOverlays() {
         menuOverlay.classList.add('hidden');
         authOverlay.classList.add('hidden');
+        syncOverlay.classList.add('hidden');
         pauseOverlay.classList.add('hidden');
         gameoverOverlay.classList.add('hidden');
       }
@@ -2558,7 +2652,7 @@
       document.getElementById('btn-logout').addEventListener('click', logoutAccount);
       document.getElementById('btn-auth-cancel').addEventListener('click', () => authOverlay.classList.add('hidden'));
 
-      document.getElementById('btn-auth-submit').addEventListener('click', async () => {
+      async function handleAuthFormSubmit() {
         const u = document.getElementById('auth-username').value;
         const p = document.getElementById('auth-password').value;
         const ok = authMode === 'signup' ? await registerAccount(u, p) : await loginAccount(u, p);
@@ -2566,6 +2660,60 @@
           authOverlay.classList.add('hidden');
           SoundFX.powerup();
         }
+      }
+
+      document.getElementById('btn-auth-submit').addEventListener('click', handleAuthFormSubmit);
+      document.getElementById('auth-password').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleAuthFormSubmit();
+      });
+
+      // Cross-Device Sync Modal (PC <-> Phone)
+      document.getElementById('btn-transfer-account').addEventListener('click', () => {
+        const exportSection = document.getElementById('sync-export-section');
+        const exportInput = document.getElementById('sync-export-code');
+        const importInput = document.getElementById('sync-import-code');
+        const statusMsg = document.getElementById('sync-status-msg');
+        importInput.value = '';
+        statusMsg.textContent = '';
+
+        if (currentUser) {
+          exportSection.style.display = 'flex';
+          exportInput.value = exportCurrentAccountKey();
+        } else {
+          exportSection.style.display = 'none';
+        }
+        syncOverlay.classList.remove('hidden');
+      });
+
+      document.getElementById('btn-copy-sync-code').addEventListener('click', () => {
+        const exportInput = document.getElementById('sync-export-code');
+        exportInput.select();
+        exportInput.setSelectionRange(0, 99999);
+        try { document.execCommand('copy'); } catch (e) {}
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(exportInput.value).catch(() => {});
+        }
+        const statusMsg = document.getElementById('sync-status-msg');
+        statusMsg.style.color = 'var(--green)';
+        statusMsg.textContent = 'ACCOUNT KEY COPIED! PASTE IT ON YOUR PHONE.';
+      });
+
+      document.getElementById('btn-sync-import').addEventListener('click', () => {
+        const res = importAccountKey(document.getElementById('sync-import-code').value);
+        const statusMsg = document.getElementById('sync-status-msg');
+        if (res.ok) {
+          statusMsg.style.color = 'var(--green)';
+          statusMsg.textContent = res.msg;
+          SoundFX.powerup();
+          setTimeout(() => syncOverlay.classList.add('hidden'), 900);
+        } else {
+          statusMsg.style.color = 'var(--pink)';
+          statusMsg.textContent = res.msg;
+        }
+      });
+
+      document.getElementById('btn-sync-close').addEventListener('click', () => {
+        syncOverlay.classList.add('hidden');
       });
 
       // Mode Selection
