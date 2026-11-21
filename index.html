@@ -735,7 +735,8 @@
         peer: null,
         conn: null,
         syncTimer: 0,
-        eventCounter: 0
+        eventCounter: 0,
+        lastAppliedSeq: -1
       };
 
       function updatePilotUI() {
@@ -866,7 +867,11 @@
               applyRemotePlayerState(remotePlayer, msg.state);
             }
           } else if (msg.type === 'SHOT') {
-            spawnRemoteLaser(msg.shot);
+            if (msg.round === undefined || msg.round === matchState.roundNumber) {
+              spawnRemoteLaser(msg.shot);
+            }
+          } else if (msg.type === 'PLAYER_KO') {
+            handleRemotePlayerKO(msg);
           } else if (msg.type === 'ROUND_EVENT' && onlineState.role === 'guest') {
             handleRemoteRoundEvent(msg.event);
           } else if (msg.type === 'REMATCH' && onlineState.role === 'guest') {
@@ -988,83 +993,80 @@
 
       function applyRemotePlayerState(remotePlayer, st) {
         if (!remotePlayer || !st) return;
-        remotePlayer.x = st.x;
-        remotePlayer.y = st.y;
-        remotePlayer.vx = st.vx;
-        remotePlayer.vy = st.vy;
-        remotePlayer.facing = st.facing;
-        // Only lower HP from remote updates within an active round so stale packets never undo hits
-        if (typeof st.hp === 'number' && st.hp < remotePlayer.hp) {
-          remotePlayer.hp = st.hp;
+
+        // Ignore packets from an earlier round or older sequence number so Player 2 never glitches on round reset
+        if (typeof st.round === 'number' && st.round !== matchState.roundNumber) return;
+        if (typeof st.seq === 'number' && st.seq <= onlineState.lastAppliedSeq) return;
+        if (typeof st.seq === 'number') onlineState.lastAppliedSeq = st.seq;
+
+        // Validate coordinates so Player 2 can never get NaN or out-of-bounds invisible coordinates
+        if (Number.isFinite(st.x)) {
+          const clampedX = Math.max(8, Math.min(GAME_W - 8 - remotePlayer.w, st.x));
+          remotePlayer.x = Math.abs(clampedX - remotePlayer.x) > 120
+            ? clampedX
+            : remotePlayer.x + (clampedX - remotePlayer.x) * 0.65;
         }
+        if (Number.isFinite(st.y)) {
+          const clampedY = Math.max(0, Math.min(468 - remotePlayer.h, st.y));
+          remotePlayer.y = Math.abs(clampedY - remotePlayer.y) > 120
+            ? clampedY
+            : remotePlayer.y + (clampedY - remotePlayer.y) * 0.65;
+        }
+
+        remotePlayer.vx = Number.isFinite(st.vx) ? st.vx : 0;
+        remotePlayer.vy = Number.isFinite(st.vy) ? st.vy : 0;
+        remotePlayer.facing = st.facing === -1 ? -1 : 1;
+
+        // Once a player is dead in this round, keep them dead until the next round starts
+        if (!remotePlayer.alive) return;
+
+        // Only lower HP within an active round so stale packets never revive or undo hits
+        if (typeof st.hp === 'number' && st.hp < remotePlayer.hp) {
+          remotePlayer.hp = Math.max(0, st.hp);
+        }
+
         remotePlayer.chargeTime = st.chargeTime || 0;
         remotePlayer.hasShield = !!st.hasShield;
         remotePlayer.rapidTimer = st.rapidTimer || 0;
         remotePlayer.tripleTimer = st.tripleTimer || 0;
-        if (st.alive === false) remotePlayer.alive = false;
+
+        if (st.alive === false || remotePlayer.hp <= 0) {
+          remotePlayer.hp = 0;
+          remotePlayer.alive = false;
+        }
       }
 
-      function spawnRemoteLaser(shotData) {
-        if (!shotData || !Array.isArray(shotData.bolts)) return;
-        shotData.bolts.forEach(b => {
-          lasers.push({
-            ownerId: b.ownerId,
-            x: b.x,
-            y: b.y,
-            w: b.w,
-            h: b.h,
-            vx: b.vx,
-            vy: b.vy,
-            damage: b.damage,
-            isCharged: b.isCharged,
-            color: b.color,
-            coreColor: '#ffffff',
-            trail: []
-          });
-        });
-        if (shotData.isCharged) audio.chargedLaser();
-        else audio.laser(1.0);
-      }
+      function handleRemotePlayerKO(msg) {
+        if (!msg || (typeof msg.round === 'number' && msg.round !== matchState.roundNumber)) return;
+        const victim = players.find(p => p.id === msg.victimId);
+        if (!victim || !victim.alive) return;
 
-      function handleRemoteRoundEvent(ev) {
-        if (!ev) return;
-        matchState.stats.p1.wins = ev.p1Wins;
-        matchState.stats.p2.wins = ev.p2Wins;
+        victim.hp = 0;
+        victim.alive = false;
+        const victimColor = victim.id === 1 ? '#00f3ff' : '#ff2a85';
+        spawnParticles(victim.x + victim.w * 0.5, victim.y + victim.h * 0.5, victimColor, 36, 260);
+        audio.ko();
 
-        if (ev.type === 'ROUND_OVER') {
-          matchState.phase = 'ROUND_OVER';
-          matchState.phaseTimer = 2.0;
-          matchState.bannerMain = ev.bannerMain;
-          matchState.bannerSub = ev.bannerSub;
-          matchState.bannerColor = ev.bannerColor;
-          audio.roundWin();
-          setTimeout(() => {
-            if (matchState.phase === 'ROUND_OVER') {
-              matchState.roundNumber = ev.nextRound;
-              matchState.arenaIndex = ev.nextArena;
-              resetRound();
-            }
-          }, 2000);
-        } else if (ev.type === 'MATCH_OVER') {
-          matchState.phase = 'MATCH_OVER';
-          matchState.phaseTimer = 1.3;
-          matchState.bannerMain = ev.bannerMain;
-          matchState.bannerSub = ev.bannerSub;
-          matchState.bannerColor = ev.bannerColor;
-          audio.matchWin();
-          const guestWon = ev.p2Wins >= WINS_NEEDED;
-          recordOnlineMatchOutcome(guestWon);
+        // If the Host receives confirmation that Player 2 died on Guest's screen, award the round cleanly
+        if (onlineState.role === 'host' && matchState.phase === 'PLAYING') {
+          const winner = players.find(p => p.id !== victim.id);
+          if (winner) onRoundWon(winner);
         }
       }
 
       function pushOnlineState(dt) {
         if (!onlineState.active || !onlineState.conn || !onlineState.conn.open || !players[0] || !players[1]) return;
+        if (matchState.phase !== 'COUNTDOWN' && matchState.phase !== 'PLAYING' && matchState.phase !== 'ROUND_OVER') return;
+
         onlineState.syncTimer -= dt;
         if (onlineState.syncTimer > 0) return;
-        onlineState.syncTimer = 0.04; // 25 updates/sec
+        onlineState.syncTimer = 0.033; // ~30 updates/sec
+        onlineState.eventCounter++;
 
         const me = onlineState.role === 'host' ? players[0] : players[1];
         const payload = {
+          round: matchState.roundNumber,
+          seq: onlineState.eventCounter,
           x: Math.round(me.x * 10) / 10,
           y: Math.round(me.y * 10) / 10,
           vx: Math.round(me.vx),
@@ -1090,6 +1092,7 @@
         try {
           onlineState.conn.send({
             type: 'SHOT',
+            round: matchState.roundNumber,
             shot: {
               id: shotId,
               isCharged,
@@ -2209,10 +2212,12 @@
       function updatePlayer(player, dt) {
         if (!player.alive) return;
 
-        // In online mode, the remote player's motion is driven by network updates
+        // In online mode, smooth-predict the remote player's position between network packets
         if (settings.mode === 'online' && onlineState.active) {
           const localPlayerId = onlineState.role === 'host' ? 1 : 2;
           if (player.id !== localPlayerId) {
+            player.x = Math.max(8, Math.min(GAME_W - 8 - player.w, player.x + player.vx * dt * 0.45));
+            player.y = Math.max(0, Math.min(468 - player.h, player.y + player.vy * dt * 0.45));
             if (player.hurtTimer > 0) player.hurtTimer -= dt;
             if (player.recoilTimer > 0) player.recoilTimer -= dt;
             if (player.muzzleTimer > 0) player.muzzleTimer -= dt;
@@ -2525,12 +2530,24 @@
 
         if (target.hp <= 0) {
           // Round KO!
+          target.hp = 0;
           target.alive = false;
           matchState.hitStopTimer = laser.isCharged ? 0.17 : 0.13;
           triggerShake(laser.isCharged ? 15 : 11, 0.38);
           spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, targetColor, 44, 300);
           spawnParticles(target.x + target.w * 0.5, target.y + target.h * 0.5, '#ffffff', 22, 230);
           audio.ko();
+
+          // Notify peer immediately so the victim never stays alive or invisible on either screen
+          if (settings.mode === 'online' && onlineState.active && onlineState.conn && onlineState.conn.open) {
+            try {
+              onlineState.conn.send({
+                type: 'PLAYER_KO',
+                round: matchState.roundNumber,
+                victimId: target.id
+              });
+            } catch (e) {}
+          }
 
           const winner = players.find(p => p.id !== target.id);
           onRoundWon(winner);
@@ -2673,6 +2690,7 @@
         floatingTexts = [];
         activePowerup = null;
         matchState.powerupSpawnTimer = 5.5;
+        onlineState.lastAppliedSeq = -1;
         prevUpState[1] = false;
         prevUpState[2] = false;
         prevShootState[1] = false;
@@ -2848,10 +2866,10 @@
       }
 
       function drawPlayerSprite(p, timeSec) {
-        if (!p.alive) return;
+        if (!p || !p.alive || p.hp <= 0) return;
 
-        const x = Math.round(p.x);
-        const y = Math.round(p.y);
+        const x = Math.max(8, Math.min(GAME_W - 8 - p.w, Math.round(p.x)));
+        const y = Math.max(0, Math.min(468 - p.h, Math.round(p.y)));
         const mainColor = p.id === 1 ? '#00f3ff' : '#ff2a85';
         const darkArmor = p.id === 1 ? '#00728f' : '#8a1144';
         const visorColor = p.id === 1 ? '#ffffff' : '#ffe600';
