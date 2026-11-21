@@ -855,6 +855,7 @@
             onlineState.opponentName = msg.guestName || 'PLAYER 2';
             if (players[1]) players[1].name = onlineState.opponentName;
           } else if (msg.type === 'WELCOME' && onlineState.role === 'guest') {
+            settings.mode = 'online';
             onlineState.opponentName = msg.hostName || 'HOST';
             settings.powerupsEnabled = msg.powerupsEnabled !== false;
             settings.maxHp = msg.maxHp || 3;
@@ -881,6 +882,7 @@
             if (typeof msg.p2Wins === 'number') matchState.stats.p2.wins = msg.p2Wins;
             resetRound();
           } else if (msg.type === 'REMATCH' && onlineState.role === 'guest') {
+            settings.mode = 'online';
             settings.powerupsEnabled = msg.powerupsEnabled !== false;
             settings.maxHp = msg.maxHp || 3;
             matchState.arenaIndex = msg.arenaIndex || 0;
@@ -911,6 +913,7 @@
         }
 
         leaveOnlineRoom();
+        settings.mode = 'online';
         const code = generateRoomCode();
         onlineState.active = true;
         onlineState.role = 'host';
@@ -970,6 +973,7 @@
         }
 
         leaveOnlineRoom();
+        settings.mode = 'online';
         onlineState.active = true;
         onlineState.role = 'guest';
         onlineState.roomCode = code;
@@ -1106,10 +1110,21 @@
           audio.ko();
         }
 
-        // If the Host receives confirmation that a player was KO'd, trigger the round win immediately
+        const winner = players.find(p => p.id !== victim.id);
+        if (!winner) return;
+
         if (onlineState.role === 'host' && matchState.phase === 'PLAYING') {
-          const winner = players.find(p => p.id !== victim.id);
-          if (winner) onRoundWon(winner);
+          onRoundWon(winner);
+        } else if (onlineState.role === 'guest' && matchState.phase === 'PLAYING') {
+          // Immediately show the round winner banner on Player 2 and freeze gameplay until Host sends NEXT_ROUND
+          const nextP1Wins = matchState.stats.p1.wins + (winner.id === 1 ? 1 : 0);
+          const nextP2Wins = matchState.stats.p2.wins + (winner.id === 2 ? 1 : 0);
+          matchState.phase = 'ROUND_OVER';
+          matchState.phaseTimer = 2.2;
+          matchState.bannerMain = `${winner.name} WINS THE ROUND!`;
+          matchState.bannerSub = `ROUND ${matchState.roundNumber} COMPLETE (${nextP1Wins} - ${nextP2Wins})`;
+          matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
+          audio.roundWin();
         }
       }
 
@@ -2618,7 +2633,17 @@
 
       function onRoundWon(winner) {
         if (settings.mode === 'online' && onlineState.role === 'guest') {
-          // Guest notifies Host via PLAYER_KO so Host sends the authoritative ROUND_EVENT & NEXT_ROUND
+          // Guest immediately displays the round winner banner and awaits Host's NEXT_ROUND signal
+          const nextP1Wins = matchState.stats.p1.wins + (winner.id === 1 ? 1 : 0);
+          const nextP2Wins = matchState.stats.p2.wins + (winner.id === 2 ? 1 : 0);
+          if (matchState.phase === 'PLAYING') {
+            matchState.phase = 'ROUND_OVER';
+            matchState.phaseTimer = 2.2;
+            matchState.bannerMain = `${winner.name} WINS THE ROUND!`;
+            matchState.bannerSub = `ROUND ${matchState.roundNumber} COMPLETE (${nextP1Wins} - ${nextP2Wins})`;
+            matchState.bannerColor = winner.id === 1 ? '#00f3ff' : '#ff2a85';
+            audio.roundWin();
+          }
           return;
         }
         if (matchState.phase === 'ROUND_OVER' || matchState.phase === 'MATCH_OVER') {
@@ -3267,6 +3292,13 @@
                     p2Wins: matchState.stats.p2.wins
                   });
                 } catch (e) {}
+              }
+              resetRound();
+            } else if (onlineState.role === 'guest' && matchState.phaseTimer <= -0.35) {
+              // Failsafe if Host's NEXT_ROUND packet was delayed: reset Player 2 cleanly to spawn
+              matchState.roundNumber++;
+              if (settings.arenaChoice === 3) {
+                matchState.arenaIndex = (matchState.arenaIndex + 1) % ARENAS.length;
               }
               resetRound();
             }
