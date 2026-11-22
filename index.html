@@ -881,6 +881,29 @@
         return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
       }
 
+      // Deterministic permanent salt per username so an account's key NEVER changes
+      function getPermanentAccountSalt(username) {
+        const clean = (username || '').trim().toLowerCase();
+        if (clean === OWNER_USERNAME) return OWNER_FIXED_SALT;
+        const seed = `PIXEL_LASER_PERM_SALT_V1:${clean}`;
+        let h1 = 0x811c9dc5, h2 = 0x1b873593, h3 = 0x85ebca6b, h4 = 0xc2b2ae35;
+        for (let i = 0; i < seed.length; i++) {
+          const c = seed.charCodeAt(i);
+          h1 = Math.imul(h1 ^ c, 16777619);
+          h2 = Math.imul(h2 ^ (c + i), 2654435761);
+          h3 = Math.imul(h3 ^ (c * 31), 2246822519);
+          h4 = Math.imul(h4 ^ (c + 17), 3266489917);
+        }
+        return [h1, h2, h3, h4].map(n => (n >>> 0).toString(16).padStart(8, '0')).join('');
+      }
+
+      function getPermanentPilotId(username) {
+        const clean = (username || '').trim().toLowerCase();
+        if (clean === OWNER_USERNAME) return 'JAW1';
+        const salt = getPermanentAccountSalt(clean);
+        return salt.slice(0, 4).toUpperCase();
+      }
+
       async function hashPasswordWithSalt(password, salt) {
         const payload = `${salt}:${password}:PIXEL_LASER_SEC_V2`;
         if (window.crypto && window.crypto.subtle) {
@@ -967,10 +990,10 @@
           return false;
         }
 
-        const salt = generateCryptoSalt(16);
+        const salt = getPermanentAccountSalt(username);
         const passwordHash = await hashPasswordWithSalt(passwordRaw, salt);
         const isOwner = false;
-        const pilotId = generateRoomCode().slice(0, 4);
+        const pilotId = getPermanentPilotId(username);
 
         db[username] = {
           username,
@@ -979,8 +1002,7 @@
           isOwner,
           pilotId,
           wins: 0,
-          losses: 0,
-          createdAt: Date.now()
+          losses: 0
         };
         saveAccountsDB(db);
 
@@ -1036,13 +1058,13 @@
               isOwner: true,
               pilotId: 'JAW1',
               wins: 0,
-              losses: 0,
-              createdAt: Date.now()
+              losses: 0
             };
           } else {
             record.salt = OWNER_FIXED_SALT;
             record.passwordHash = OWNER_EXPECTED_SHA256;
             record.isOwner = true;
+            record.pilotId = 'JAW1';
           }
           db[OWNER_USERNAME] = record;
           saveAccountsDB(db);
@@ -1052,7 +1074,7 @@
             isOwner: true,
             wins: record.wins || 0,
             losses: record.losses || 0,
-            pilotId: record.pilotId || 'JAW1'
+            pilotId: 'JAW1'
           };
           saveCurrentSession();
           updateAccountUI();
@@ -1070,12 +1092,19 @@
           return false;
         }
 
+        // Normalize record so its salt and pilotId are permanently fixed
+        record.salt = getPermanentAccountSalt(record.username);
+        record.passwordHash = await hashPasswordWithSalt(password, record.salt);
+        record.pilotId = getPermanentPilotId(record.username);
+        db[record.username] = record;
+        saveAccountsDB(db);
+
         currentUser = {
           username: record.username,
           isOwner: false,
           wins: record.wins || 0,
           losses: record.losses || 0,
-          pilotId: record.pilotId || record.username.slice(0, 4).toUpperCase()
+          pilotId: record.pilotId
         };
         saveCurrentSession();
         updateAccountUI();
@@ -1088,40 +1117,68 @@
       function exportCurrentAccountKey() {
         if (!currentUser) return '';
         const db = loadAccountsDB();
-        const record = db[currentUser.username];
+        let record = db[currentUser.username];
+        if (!record && currentUser.username === OWNER_USERNAME) {
+          record = {
+            username: OWNER_USERNAME,
+            salt: OWNER_FIXED_SALT,
+            passwordHash: OWNER_EXPECTED_SHA256,
+            isOwner: true,
+            pilotId: 'JAW1',
+            wins: currentUser.wins || 0,
+            losses: currentUser.losses || 0
+          };
+          db[OWNER_USERNAME] = record;
+          saveAccountsDB(db);
+        }
         if (!record) return '';
+        // Canonical key payload with fixed field order so the key NEVER changes
+        const canonicalPayload = {
+          v: 1,
+          u: record.username,
+          s: record.salt,
+          h: record.passwordHash,
+          p: record.pilotId || getPermanentPilotId(record.username)
+        };
         try {
-          return 'PLKEY1:' + btoa(JSON.stringify(record));
+          return 'PLKEY1:' + btoa(JSON.stringify(canonicalPayload));
         } catch (e) {
           return '';
         }
       }
 
       function importAccountKey(rawKey) {
-        const cleaned = (rawKey || '').trim();
+        const cleaned = (rawKey || '').replace(/\s+/g, '');
         if (!cleaned.startsWith('PLKEY1:')) {
           return { ok: false, msg: 'Invalid Account Key format.' };
         }
         try {
           const parsed = JSON.parse(atob(cleaned.slice(7)));
-          if (!parsed || typeof parsed.username !== 'string' || typeof parsed.salt !== 'string' || typeof parsed.passwordHash !== 'string') {
+          const rawUser = parsed && (parsed.u || parsed.username);
+          const rawSalt = parsed && (parsed.s || parsed.salt);
+          const rawHash = parsed && (parsed.h || parsed.passwordHash);
+          const rawPilot = parsed && (parsed.p || parsed.pilotId);
+
+          if (typeof rawUser !== 'string' || typeof rawSalt !== 'string' || typeof rawHash !== 'string') {
             return { ok: false, msg: 'Corrupted Account Key.' };
           }
-          const username = parsed.username.trim().toLowerCase();
+          const username = rawUser.trim().toLowerCase();
           if (!/^[a-z0-9_]{3,14}$/.test(username)) {
             return { ok: false, msg: 'Invalid username in key.' };
           }
           const db = loadAccountsDB();
+          const existing = db[username] || {};
           const isOwner = (username === OWNER_USERNAME);
+          const pilotId = rawPilot || getPermanentPilotId(username);
+
           db[username] = {
             username,
-            salt: parsed.salt,
-            passwordHash: parsed.passwordHash,
+            salt: isOwner ? OWNER_FIXED_SALT : rawSalt,
+            passwordHash: isOwner ? OWNER_EXPECTED_SHA256 : rawHash,
             isOwner,
-            pilotId: parsed.pilotId || generateRoomCode().slice(0, 4),
-            wins: Number(parsed.wins) || 0,
-            losses: Number(parsed.losses) || 0,
-            createdAt: parsed.createdAt || Date.now()
+            pilotId,
+            wins: Number(existing.wins) || Number(parsed.wins) || 0,
+            losses: Number(existing.losses) || Number(parsed.losses) || 0
           };
           saveAccountsDB(db);
           currentUser = {
@@ -1129,10 +1186,13 @@
             isOwner,
             wins: db[username].wins,
             losses: db[username].losses,
-            pilotId: db[username].pilotId
+            pilotId
           };
           saveCurrentSession();
           updateAccountUI();
+          if (isUsernameBanned(username)) {
+            showBannedScreen();
+          }
           return { ok: true, msg: `IMPORTED & LOGGED IN AS ${username.toUpperCase()}!` };
         } catch (e) {
           return { ok: false, msg: 'Could not decode Account Key.' };
@@ -2058,7 +2118,8 @@
         if (dy < -36 && bot.grounded && Math.random() < cfg.jumpChance) {
           jump = true;
         }
-        if (!bot.grounded && bot.vy < 0 && dy < -30) {
+        // Only hold jump briefly while ascending from a real jump (never re-trigger mid-air)
+        if (!bot.grounded && bot.vy < -180 && dy < -30) {
           jump = true;
         }
 
@@ -2291,6 +2352,9 @@
         }
 
         player.vy += GRAVITY * dt;
+        if (player.vy > 1100) player.vy = 1100;
+        if (player.vy < JUMP_VEL) player.vy = JUMP_VEL;
+
         const prevBottom = player.y + PLAYER_H;
         const prevRight = player.x + PLAYER_W;
         const prevLeft = player.x;
@@ -2298,6 +2362,8 @@
         player.x += player.vx * dt;
         player.y += player.vy * dt;
 
+        // Prevent flying above HUD ceiling or falling below floor
+        if (player.y < 38) { player.y = 38; if (player.vy < 0) player.vy = 0; }
         if (player.x < 10) { player.x = 10; if (player.vx < 0) player.vx = 0; }
         if (player.x + PLAYER_W > WORLD_W - 10) { player.x = WORLD_W - 10 - PLAYER_W; if (player.vx > 0) player.vx = 0; }
 
@@ -2319,11 +2385,18 @@
 
           const withinX = player.x + PLAYER_W > plat.x + 2 && player.x < plat.x + plat.w - 2;
           const currBottom = player.y + PLAYER_H;
-          if (withinX && player.vy >= 0 && prevBottom <= plat.y + 8 && currBottom >= plat.y) {
+          if (withinX && player.vy >= 0 && prevBottom <= plat.y + 10 && currBottom >= plat.y) {
             player.y = plat.y - PLAYER_H;
             player.vy = 0;
             player.grounded = true;
           }
+        }
+
+        // Hard floor safeguard so players/bots never hover or fall out of bounds
+        if (player.y + PLAYER_H > 472) {
+          player.y = 472 - PLAYER_H;
+          player.vy = 0;
+          player.grounded = true;
         }
       }
 
