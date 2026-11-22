@@ -802,6 +802,22 @@
       let currentUser = null;
       let authMode = 'login';
 
+      function loadBannedList() {
+        try {
+          const raw = localStorage.getItem(BANNED_DB_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveBannedList(list) {
+        try {
+          localStorage.setItem(BANNED_DB_KEY, JSON.stringify(list));
+        } catch (e) {}
+      }
+
       function normalizeModUsername(raw) {
         return (raw || '')
           .replace(/\[owner\]/gi, '')
