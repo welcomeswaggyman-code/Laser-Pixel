@@ -1443,6 +1443,7 @@
         opponentName: 'PILOT-2',
         opponentIsOwner: false,
         syncTimer: 0,
+        heartbeatInterval: null,
         seqOut: 0,
         seqIn: -1,
         packetWindowStart: 0,
@@ -1451,35 +1452,42 @@
         targetY: 432
       };
 
-      function generateRoomCode() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
-        return code;
+      function startNetworkHeartbeat() {
+        stopNetworkHeartbeat();
+        onlineState.heartbeatInterval = setInterval(() => {
+          if (!onlineState.active || !onlineState.conn || !onlineState.conn.open) return;
+          if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') return;
+          if (players.length < 2) return;
+          const localIdx = getLocalControlledPlayerIndex();
+          const localP = players[localIdx];
+          if (!localP) return;
+          onlineState.seqOut += 1;
+          sendPeerPacket({
+            type: 'STATE',
+            round: matchState.roundNumber,
+            scores: [players[0].score, players[1].score],
+            phase: matchState.phase,
+            seq: onlineState.seqOut,
+            x: Math.round(localP.x * 10) / 10,
+            y: Math.round(localP.y * 10) / 10,
+            facing: localP.facing,
+            hp: localP.hp,
+            alive: localP.alive,
+            shield: localP.shield,
+            chargeTimer: localP.chargeTimer
+          });
+        }, 33);
       }
 
-      function allowIncomingPacket() {
-        const now = performance.now();
-        if (now - onlineState.packetWindowStart > 1000) {
-          onlineState.packetWindowStart = now;
-          onlineState.packetCountInWindow = 0;
-        }
-        onlineState.packetCountInWindow++;
-        return onlineState.packetCountInWindow <= 120;
-      }
-
-      function sanitizeTag(raw, fallback = 'PILOT') {
-        if (typeof raw !== 'string') return fallback;
-        return raw.replace(/[^A-Za-z0-9_\-\[\] ]/g, '').slice(0, 22) || fallback;
-      }
-
-      function sendPeerPacket(payload) {
-        if (onlineState.conn && onlineState.conn.open) {
-          try { onlineState.conn.send(payload); } catch (e) {}
+      function stopNetworkHeartbeat() {
+        if (onlineState.heartbeatInterval) {
+          clearInterval(onlineState.heartbeatInterval);
+          onlineState.heartbeatInterval = null;
         }
       }
 
       function teardownOnlineRoom() {
+        stopNetworkHeartbeat();
         if (onlineState.conn) { try { onlineState.conn.close(); } catch (e) {} }
         if (onlineState.peer) { try { onlineState.peer.destroy(); } catch (e) {} }
         onlineState.active = false;
@@ -1507,6 +1515,7 @@
           if (readyFired) return;
           readyFired = true;
           onlineState.active = true;
+          startNetworkHeartbeat();
           sendPeerPacket({
             type: 'HELLO',
             name: getLocalPilotTag(),
@@ -1687,7 +1696,22 @@
           case 'STATE': {
             onlineState.active = true;
             if (!remoteP) break;
-            if (typeof data.round === 'number' && data.round < matchState.roundNumber) return;
+
+            // Auto-sync round & scores if a background tab missed NEXT_ROUND
+            if (typeof data.round === 'number' && data.round > matchState.roundNumber) {
+              if (matchState.nextRoundTimeout) {
+                clearTimeout(matchState.nextRoundTimeout);
+                matchState.nextRoundTimeout = null;
+              }
+              matchState.roundNumber = data.round;
+              if (Array.isArray(data.scores) && data.scores.length === 2) {
+                players[0].score = Number(data.scores[0]) || players[0].score;
+                players[1].score = Number(data.scores[1]) || players[1].score;
+              }
+              startRound();
+            } else if (typeof data.round === 'number' && data.round < matchState.roundNumber) {
+              return;
+            }
 
             const rawX = Number(data.x);
             const rawY = Number(data.y);
@@ -1704,8 +1728,8 @@
               remoteP.x = rx;
               remoteP.y = ry;
             } else {
-              remoteP.x += (rx - remoteP.x) * 0.7;
-              remoteP.y += (ry - remoteP.y) * 0.7;
+              remoteP.x += (rx - remoteP.x) * 0.75;
+              remoteP.y += (ry - remoteP.y) * 0.75;
             }
 
             remoteP.facing = data.facing === -1 ? -1 : 1;
@@ -2686,7 +2710,8 @@
 
       function drawPlayerSprite(p) {
         if (!p || !p.alive) return;
-        if (matchState.phase === 'PLAYING' && p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
+        const isLocalOnline = (settings.mode === 'online' && p.index === getLocalControlledPlayerIndex());
+        if (!isLocalOnline && matchState.phase === 'PLAYING' && p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
 
         const x = Math.round(p.x);
         const y = Math.round(p.y);
