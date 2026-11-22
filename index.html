@@ -1547,7 +1547,9 @@
 
       function setupPeerConnection(conn) {
         onlineState.conn = conn;
+        onlineState.active = true;
         onlineState.seqIn = -1;
+        let hostLaunched = false;
 
         conn.on('open', () => {
           onlineState.active = true;
@@ -1572,16 +1574,18 @@
                 hostName: getLocalPilotTag(),
                 hostIsOwner: !!(currentUser && currentUser.isOwner)
               });
-              if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
+              if (!hostLaunched && (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER')) {
+                hostLaunched = true;
                 startNewMatch();
               }
             };
-            setTimeout(launchHostMatch, 250);
-            setTimeout(launchHostMatch, 800);
+            setTimeout(launchHostMatch, 180);
+            setTimeout(launchHostMatch, 650);
           }
         });
 
         conn.on('data', (data) => {
+          onlineState.active = true;
           if (!allowIncomingPacket()) return;
           if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
           handleIncomingPeerData(data);
@@ -1671,13 +1675,14 @@
 
         switch (data.type) {
           case 'HELLO': {
+            onlineState.active = true;
             onlineState.opponentName = sanitizeTag(data.name, 'PILOT-2');
             onlineState.opponentIsOwner = !!data.isOwner;
             if (remoteP) {
               remoteP.name = onlineState.opponentName;
               remoteP.isOwner = onlineState.opponentIsOwner;
             }
-            // Host re-sends START_MATCH as soon as guest says HELLO so guest never misses it
+            // Host sends START_MATCH upon receiving guest HELLO, launching only once if not already in-game
             if (onlineState.role === 'host') {
               sendPeerPacket({
                 type: 'START_MATCH',
@@ -1699,6 +1704,7 @@
             break;
           }
           case 'START_MATCH': {
+            onlineState.active = true;
             if (['cycle', 'neon', 'cyber', 'void'].includes(data.arenaMode)) {
               settings.arenaMode = data.arenaMode;
             }
@@ -1712,10 +1718,14 @@
             onlineState.opponentIsOwner = !!data.hostIsOwner;
             if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
               startNewMatch();
+            } else if (players[0]) {
+              players[0].name = onlineState.opponentName;
+              players[0].isOwner = onlineState.opponentIsOwner;
             }
             break;
           }
           case 'STATE': {
+            onlineState.active = true;
             if (!remoteP) break;
             if (typeof data.round === 'number' && data.round < matchState.roundNumber) return;
 
@@ -1734,14 +1744,15 @@
               remoteP.x = rx;
               remoteP.y = ry;
             } else {
-              remoteP.x += (rx - remoteP.x) * 0.65;
-              remoteP.y += (ry - remoteP.y) * 0.65;
+              remoteP.x += (rx - remoteP.x) * 0.7;
+              remoteP.y += (ry - remoteP.y) * 0.7;
             }
 
             remoteP.facing = data.facing === -1 ? -1 : 1;
             if (typeof data.hp === 'number') remoteP.hp = Math.max(0, Math.min(settings.maxHp, data.hp));
             if (matchState.phase === 'COUNTDOWN' || matchState.phase === 'PLAYING') {
-              remoteP.alive = (data.alive !== false) && remoteP.hp > 0;
+              remoteP.alive = true;
+              remoteP.invulnTimer = 0;
             }
             remoteP.shield = !!data.shield;
             remoteP.chargeTimer = Math.max(0, Math.min(MEGA_CHARGE_TIME, Number(data.chargeTimer) || 0));
