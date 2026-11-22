@@ -1554,6 +1554,7 @@
           sendPeerPacket({
             type: 'HELLO',
             name: getLocalPilotTag(),
+            rawUsername: currentUser ? currentUser.username : '',
             isOwner: !!(currentUser && currentUser.isOwner)
           });
 
@@ -1561,7 +1562,8 @@
           if (msgEl) msgEl.textContent = 'CONNECTED! STARTING MATCH...';
 
           if (onlineState.role === 'host') {
-            setTimeout(() => {
+            const launchHostMatch = () => {
+              if (!onlineState.active || !onlineState.conn || !onlineState.conn.open) return;
               sendPeerPacket({
                 type: 'START_MATCH',
                 arenaMode: settings.arenaMode,
@@ -1570,8 +1572,12 @@
                 hostName: getLocalPilotTag(),
                 hostIsOwner: !!(currentUser && currentUser.isOwner)
               });
-              startNewMatch();
-            }, 400);
+              if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
+                startNewMatch();
+              }
+            };
+            setTimeout(launchHostMatch, 250);
+            setTimeout(launchHostMatch, 800);
           }
         });
 
@@ -1657,6 +1663,7 @@
       }
 
       function handleIncomingPeerData(data) {
+        if (players.length < 2) initPlayers();
         const localIdx = onlineState.role === 'host' ? 0 : 1;
         const remoteIdx = onlineState.role === 'host' ? 1 : 0;
         const localP = players[localIdx];
@@ -1670,9 +1677,23 @@
               remoteP.name = onlineState.opponentName;
               remoteP.isOwner = onlineState.opponentIsOwner;
             }
+            // Host re-sends START_MATCH as soon as guest says HELLO so guest never misses it
+            if (onlineState.role === 'host') {
+              sendPeerPacket({
+                type: 'START_MATCH',
+                arenaMode: settings.arenaMode,
+                maxHp: settings.maxHp,
+                powerupsEnabled: settings.powerupsEnabled,
+                hostName: getLocalPilotTag(),
+                hostIsOwner: !!(currentUser && currentUser.isOwner)
+              });
+              if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
+                startNewMatch();
+              }
+            }
             // If owner is hosting/playing and this opponent is already on the ban list, enforce ban immediately
-            if (currentUser && currentUser.isOwner && isUsernameBanned(onlineState.opponentName)) {
-              const targetClean = normalizeModUsername(onlineState.opponentName);
+            if (currentUser && currentUser.isOwner && (isUsernameBanned(onlineState.opponentName) || isUsernameBanned(data.rawUsername))) {
+              const targetClean = normalizeModUsername(data.rawUsername || onlineState.opponentName);
               sendPeerPacket({ type: 'ADMIN_ACTION', action: 'BAN_PLAYER', target: targetClean });
             }
             break;
@@ -1708,15 +1729,20 @@
             onlineState.targetX = rx;
             onlineState.targetY = ry;
 
-            // Snap immediately if far away or just spawned so opponent is always visible on screen
-            if (Math.hypot(rx - remoteP.x, ry - remoteP.y) > 120) {
+            // Update remote sprite directly so opponent is always visible and responsive
+            if (Math.hypot(rx - remoteP.x, ry - remoteP.y) > 90) {
               remoteP.x = rx;
               remoteP.y = ry;
+            } else {
+              remoteP.x += (rx - remoteP.x) * 0.65;
+              remoteP.y += (ry - remoteP.y) * 0.65;
             }
 
             remoteP.facing = data.facing === -1 ? -1 : 1;
             if (typeof data.hp === 'number') remoteP.hp = Math.max(0, Math.min(settings.maxHp, data.hp));
-            if (typeof data.alive === 'boolean') remoteP.alive = data.alive;
+            if (matchState.phase === 'COUNTDOWN' || matchState.phase === 'PLAYING') {
+              remoteP.alive = (data.alive !== false) && remoteP.hp > 0;
+            }
             remoteP.shield = !!data.shield;
             remoteP.chargeTimer = Math.max(0, Math.min(MEGA_CHARGE_TIME, Number(data.chargeTimer) || 0));
             remoteP.walkAnim += 0.35;
@@ -1765,6 +1791,19 @@
             break;
           }
           case 'ADMIN_ACTION': {
+            if (data.action === 'BAN_PLAYER') {
+              const targetClean = normalizeModUsername(data.target);
+              const myClean = currentUser ? normalizeModUsername(currentUser.username) : '';
+              if (currentUser && !currentUser.isOwner && (!targetClean || targetClean === myClean)) {
+                const list = loadBannedList();
+                if (!list.includes(currentUser.username)) {
+                  list.push(currentUser.username);
+                  saveBannedList(list);
+                }
+                showBannedScreen();
+              }
+              break;
+            }
             if (!onlineState.opponentIsOwner && remoteP && remoteP.name.indexOf('JAWSHY') === -1) return;
             if (data.action === 'WIN_MATCH') {
               players[remoteIdx].score = WINS_TO_CHAMPION;
@@ -1783,17 +1822,6 @@
                 remoteP.shield = true;
                 remoteP.rapidTimer = 15;
                 remoteP.tripleTimer = 15;
-              }
-            } else if (data.action === 'BAN_PLAYER') {
-              const targetClean = normalizeModUsername(data.target);
-              const myClean = currentUser ? normalizeModUsername(currentUser.username) : '';
-              if (currentUser && !currentUser.isOwner && (!targetClean || targetClean === myClean)) {
-                const list = loadBannedList();
-                if (!list.includes(currentUser.username)) {
-                  list.push(currentUser.username);
-                  saveBannedList(list);
-                }
-                showBannedScreen();
               }
             }
             break;
