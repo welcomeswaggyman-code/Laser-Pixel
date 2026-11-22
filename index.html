@@ -1231,58 +1231,6 @@
         }
       }
 
-      function importAccountKey(rawKey) {
-        const cleaned = (rawKey || '').replace(/\s+/g, '');
-        if (!cleaned.startsWith('PLKEY1:')) {
-          return { ok: false, msg: 'Invalid Account Key format.' };
-        }
-        try {
-          const parsed = JSON.parse(atob(cleaned.slice(7)));
-          const rawUser = parsed && (parsed.u || parsed.username);
-          const rawSalt = parsed && (parsed.s || parsed.salt);
-          const rawHash = parsed && (parsed.h || parsed.passwordHash);
-          const rawPilot = parsed && (parsed.p || parsed.pilotId);
-
-          if (typeof rawUser !== 'string' || typeof rawSalt !== 'string' || typeof rawHash !== 'string') {
-            return { ok: false, msg: 'Corrupted Account Key.' };
-          }
-          const username = rawUser.trim().toLowerCase();
-          if (!/^[a-z0-9_]{3,14}$/.test(username)) {
-            return { ok: false, msg: 'Invalid username in key.' };
-          }
-          const db = loadAccountsDB();
-          const existing = db[username] || {};
-          const isOwner = (username === OWNER_USERNAME);
-          const pilotId = rawPilot || getPermanentPilotId(username);
-
-          db[username] = {
-            username,
-            salt: isOwner ? OWNER_FIXED_SALT : rawSalt,
-            passwordHash: isOwner ? OWNER_EXPECTED_SHA256 : rawHash,
-            isOwner,
-            pilotId,
-            wins: Number(existing.wins) || Number(parsed.wins) || 0,
-            losses: Number(existing.losses) || Number(parsed.losses) || 0
-          };
-          saveAccountsDB(db);
-          currentUser = {
-            username,
-            isOwner,
-            wins: db[username].wins,
-            losses: db[username].losses,
-            pilotId
-          };
-          saveCurrentSession();
-          updateAccountUI();
-          if (isUsernameBanned(username)) {
-            showBannedScreen();
-          }
-          return { ok: true, msg: `IMPORTED & LOGGED IN AS ${username.toUpperCase()}!` };
-        } catch (e) {
-          return { ok: false, msg: 'Could not decode Account Key.' };
-        }
-      }
-
       function logoutAccount() {
         currentUser = null;
         saveCurrentSession();
@@ -1546,12 +1494,18 @@
       }
 
       function setupPeerConnection(conn) {
+        if (onlineState.conn && onlineState.conn !== conn && onlineState.conn.open) {
+          try { onlineState.conn.close(); } catch (e) {}
+        }
         onlineState.conn = conn;
         onlineState.active = true;
         onlineState.seqIn = -1;
         let hostLaunched = false;
+        let readyFired = false;
 
-        conn.on('open', () => {
+        const onConnReady = () => {
+          if (readyFired) return;
+          readyFired = true;
           onlineState.active = true;
           sendPeerPacket({
             type: 'HELLO',
@@ -1579,10 +1533,16 @@
                 startNewMatch();
               }
             };
-            setTimeout(launchHostMatch, 180);
-            setTimeout(launchHostMatch, 650);
+            setTimeout(launchHostMatch, 150);
+            setTimeout(launchHostMatch, 600);
           }
-        });
+        };
+
+        if (conn.open) {
+          onConnReady();
+        } else {
+          conn.on('open', onConnReady);
+        }
 
         conn.on('data', (data) => {
           onlineState.active = true;
@@ -1592,7 +1552,7 @@
         });
 
         conn.on('close', () => {
-          if (onlineState.active) {
+          if (onlineState.conn === conn && onlineState.active) {
             teardownOnlineRoom();
             if (matchState.phase !== 'MENU') {
               showGameOver('OPPONENT DISCONNECTED', 'CONNECTION CLOSED');
@@ -2618,6 +2578,9 @@
 
         if (matchState.phase === 'COUNTDOWN') {
           matchState.countdownTimer -= dt;
+          for (const p of players) {
+            if (p.invulnTimer > 0) p.invulnTimer = Math.max(0, p.invulnTimer - dt);
+          }
           if (matchState.countdownTimer <= 0) matchState.phase = 'PLAYING';
           // Broadcast spawn state during countdown so both players see each other immediately
           if (settings.mode === 'online' && onlineState.active) {
@@ -2625,6 +2588,7 @@
             const remoteIdx = localIdx === 0 ? 1 : 0;
             const localP = players[localIdx];
             const remoteP = players[remoteIdx];
+            if (localP) localP.alive = true;
             if (remoteP) {
               remoteP.alive = true;
               remoteP.x += (onlineState.targetX - remoteP.x) * Math.min(1, dt * 26);
@@ -2665,9 +2629,12 @@
 
           updatePlayerPhysics(localP, getUnifiedSinglePlayerInput(), dt);
 
-          if (remoteP && remoteP.alive) {
-            remoteP.x += (onlineState.targetX - remoteP.x) * Math.min(1, dt * 26);
-            remoteP.y += (onlineState.targetY - remoteP.y) * Math.min(1, dt * 26);
+          if (remoteP) {
+            if (remoteP.hp > 0) remoteP.alive = true;
+            if (remoteP.alive) {
+              remoteP.x += (onlineState.targetX - remoteP.x) * Math.min(1, dt * 26);
+              remoteP.y += (onlineState.targetY - remoteP.y) * Math.min(1, dt * 26);
+            }
           }
 
           onlineState.syncTimer += dt;
@@ -2718,8 +2685,8 @@
       window.addEventListener('resize', resizeCanvas);
 
       function drawPlayerSprite(p) {
-        if (!p.alive) return;
-        if (p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
+        if (!p || !p.alive) return;
+        if (matchState.phase === 'PLAYING' && p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
 
         const x = Math.round(p.x);
         const y = Math.round(p.y);
