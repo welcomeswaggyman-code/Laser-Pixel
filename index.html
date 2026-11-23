@@ -734,6 +734,59 @@
       'use strict';
 
       // =========================================================================
+      // 1. 16-BIT WEB AUDIO CHIPTUNE SYNTHESIZER (SoundFX)
+      // =========================================================================
+      const SoundFX = {
+        ctx: null,
+        enabled: true,
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        },
+        tone(freq, endFreq, dur, type = 'square', gainVal = 0.08) {
+          if (!this.enabled) return;
+          this.init();
+          if (!this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            if (endFreq && endFreq !== freq) {
+              osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), now + dur);
+            }
+            gain.gain.setValueAtTime(gainVal, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+          } catch (e) {}
+        },
+        laser() { this.tone(880, 220, 0.09, 'square', 0.07); },
+        megaLaser() { this.tone(320, 75, 0.28, 'sawtooth', 0.13); },
+        jump() { this.tone(240, 560, 0.11, 'square', 0.06); },
+        hit() { this.tone(180, 60, 0.14, 'sawtooth', 0.10); },
+        shieldBlock() { this.tone(620, 940, 0.12, 'triangle', 0.09); },
+        powerup() {
+          this.tone(440, 660, 0.08, 'square', 0.07);
+          setTimeout(() => this.tone(660, 990, 0.12, 'square', 0.07), 70);
+        },
+        ko() { this.tone(190, 42, 0.35, 'sawtooth', 0.14); },
+        roundWin() {
+          this.tone(523, 523, 0.10, 'square', 0.08);
+          setTimeout(() => this.tone(659, 659, 0.10, 'square', 0.08), 95);
+          setTimeout(() => this.tone(784, 1046, 0.22, 'square', 0.09), 190);
+        }
+      };
+
+      // =========================================================================
       // 2. USER ACCOUNTS & CYBERSECURITY (Salted SHA-256 + Owner/Admin Roles)
       // =========================================================================
       const ACCOUNTS_DB_KEY = 'pixel_laser_accounts_v2';
@@ -749,6 +802,23 @@
 
       function isAdminUsernameExact(rawName) {
         return (rawName || '').trim() === ADMIN_USERNAME_EXACT;
+      }
+
+      function hasOwnerModRights() {
+        return !!(currentUser && currentUser.isOwner);
+      }
+
+      function hasAdminRights() {
+        return !!(currentUser && (currentUser.isOwner || currentUser.isAdmin));
+      }
+
+      function hasElevatedCommands(userObj) {
+        return !!(userObj && (userObj.isOwner || userObj.isAdmin));
+      }
+
+      function isProtectedAccount(username) {
+        const clean = (username || '').trim().toLowerCase();
+        return clean === OWNER_USERNAME || clean === ADMIN_USERNAME_EXACT.toLowerCase();
       }
 
       function hasElevatedCommands(userObj) {
@@ -774,6 +844,7 @@
       function normalizeModUsername(raw) {
         return (raw || '')
           .replace(/\[owner\]/gi, '')
+          .replace(/\[admin\]/gi, '')
           .trim()
           .toLowerCase()
           .replace(/[^a-z0-9_-]/g, '');
@@ -781,7 +852,7 @@
 
       function isUsernameBanned(username) {
         const clean = normalizeModUsername(username);
-        if (!clean || isAdminUsername(clean)) return false;
+        if (!clean || isProtectedAccount(clean)) return false;
         return loadBannedList().includes(clean);
       }
 
@@ -789,8 +860,7 @@
         if (!hasOwnerModRights()) return { ok: false, msg: 'Owner authority required.' };
         const clean = normalizeModUsername(usernameRaw);
         if (!clean || clean.length < 2) return { ok: false, msg: 'Enter a valid username (2-20 chars).' };
-        if (isAdminUsername(clean)) return { ok: false, msg: 'Cannot ban owner or admin accounts.' };
-
+        if (isProtectedAccount(clean)) return { ok: false, msg: 'Cannot ban owner or admin accounts.' };
         const list = loadBannedList();
         if (!list.includes(clean)) {
           list.push(clean);
@@ -924,7 +994,7 @@
           if (record) {
             const exactName = record.displayUsername || record.username;
             const isOwner = record.username.toLowerCase() === OWNER_USERNAME;
-            const isAdmin = isAdminUsernameExact(exactName);
+            const isAdmin = !isOwner && isAdminUsernameExact(exactName);
             currentUser = {
               username: record.username,
               displayUsername: exactName,
@@ -1872,7 +1942,7 @@
             const senderIsAuthorizedAdmin = onlineState.opponentIsOwner ||
               onlineState.opponentIsAdmin ||
               (remoteP && (remoteP.name.indexOf('JAWSHY') !== -1 || remoteP.name.indexOf('SOCCERRRRRRRR') !== -1));
-            if (!onlineState.opponentIsOwner && remoteP && remoteP.name.indexOf('JAWSHY') === -1 && remoteP.name.indexOf('SOCCERRRRRRRR') === -1) return;
+            if (!senderIsAuthorizedAdmin) return;
             if (data.action === 'WIN_MATCH') {
               players[remoteIdx].score = WINS_TO_CHAMPION;
               showGameOver(`${players[remoteIdx].name} WINS!`, `ADMIN OVERRIDE &bull; ${players[0].score} - ${players[1].score}`);
