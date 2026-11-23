@@ -500,7 +500,7 @@
 
     <!-- Owner Admin Bar (Visible only when logged in as jawshy) -->
     <div id="admin-console-bar" class="admin-floating-bar hidden">
-      <span class="owner-tag">[OWNER] JAWSHY</span>
+      <span id="admin-console-role-tag" class="owner-tag">[OWNER] JAWSHY</span>
       <button id="btn-admin-powers" class="small-action-btn">+POWERS</button>
       <button id="btn-admin-ko" class="small-action-btn pink">KO FOE</button>
       <button id="btn-admin-win" class="small-action-btn gold">WIN MATCH</button>
@@ -734,73 +734,26 @@
       'use strict';
 
       // =========================================================================
-      // 1. RETRO WEB AUDIO SYNTHESIZER
-      // =========================================================================
-      const SoundFX = {
-        ctx: null,
-        enabled: true,
-        init() {
-          if (!this.ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) this.ctx = new AudioCtx();
-          }
-          if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(() => {});
-          }
-        },
-        playTone(freq, endFreq, duration, type = 'square', gainVal = 0.075) {
-          if (!this.enabled) return;
-          this.init();
-          if (!this.ctx) return;
-          try {
-            const now = this.ctx.currentTime;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, now);
-            if (endFreq && endFreq !== freq) {
-              osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), now + duration);
-            }
-            gain.gain.setValueAtTime(gainVal, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-            osc.start(now);
-            osc.stop(now + duration);
-          } catch (e) {}
-        },
-        laser() { this.playTone(880, 210, 0.11, 'square', 0.06); },
-        megaLaser() {
-          this.playTone(1240, 140, 0.28, 'sawtooth', 0.10);
-          this.playTone(620, 95, 0.30, 'square', 0.08);
-        },
-        jump() { this.playTone(220, 540, 0.11, 'square', 0.05); },
-        hit() { this.playTone(180, 55, 0.16, 'sawtooth', 0.085); },
-        shieldBlock() { this.playTone(640, 960, 0.13, 'triangle', 0.075); },
-        powerup() {
-          this.playTone(440, 660, 0.08, 'square', 0.06);
-          setTimeout(() => this.playTone(660, 990, 0.12, 'square', 0.06), 70);
-        },
-        ko() { this.playTone(260, 48, 0.42, 'sawtooth', 0.11); },
-        roundWin() {
-          [523, 659, 784, 1046].forEach((f, idx) => {
-            setTimeout(() => this.playTone(f, f * 1.02, 0.12, 'square', 0.06), idx * 80);
-          });
-        }
-      };
-
-      // =========================================================================
-      // 2. USER ACCOUNTS & CYBERSECURITY (Salted SHA-256 + Owner Role for jawshy)
+      // 2. USER ACCOUNTS & CYBERSECURITY (Salted SHA-256 + Owner/Admin Roles)
       // =========================================================================
       const ACCOUNTS_DB_KEY = 'pixel_laser_accounts_v2';
       const SESSION_KEY = 'pixel_laser_session_v2';
       const BANNED_DB_KEY = 'pixel_laser_banned_v1';
       const OWNER_USERNAME = 'jawshy';
+      const ADMIN_USERNAME_EXACT = 'SOCCERRRRRRRR';
       const OWNER_FIXED_SALT = '7a19c4e28b30f51d9e64a2c8b07f31d5';
       const OWNER_EXPECTED_SHA256 = '49956f63150e4d7b04bd8151f578d4a02e9f2f74ee518061a60e59173e69c5d3';
 
       let currentUser = null;
       let authMode = 'login';
+
+      function isAdminUsernameExact(rawName) {
+        return (rawName || '').trim() === ADMIN_USERNAME_EXACT;
+      }
+
+      function hasElevatedCommands(userObj) {
+        return !!(userObj && (userObj.isOwner || userObj.isAdmin));
+      }
 
       function loadBannedList() {
         try {
@@ -828,15 +781,15 @@
 
       function isUsernameBanned(username) {
         const clean = normalizeModUsername(username);
-        if (!clean || clean === OWNER_USERNAME) return false;
+        if (!clean || isAdminUsername(clean)) return false;
         return loadBannedList().includes(clean);
       }
 
       function banPlayerUsername(usernameRaw) {
-        if (!currentUser || !currentUser.isOwner) return { ok: false, msg: 'Owner authority required.' };
+        if (!hasOwnerModRights()) return { ok: false, msg: 'Owner authority required.' };
         const clean = normalizeModUsername(usernameRaw);
         if (!clean || clean.length < 2) return { ok: false, msg: 'Enter a valid username (2-20 chars).' };
-        if (clean === OWNER_USERNAME) return { ok: false, msg: 'Cannot ban the owner account.' };
+        if (isAdminUsername(clean)) return { ok: false, msg: 'Cannot ban owner or admin accounts.' };
 
         const list = loadBannedList();
         if (!list.includes(clean)) {
@@ -969,9 +922,14 @@
           const db = loadAccountsDB();
           const record = db[savedUser.toLowerCase()];
           if (record) {
+            const exactName = record.displayUsername || record.username;
+            const isOwner = record.username.toLowerCase() === OWNER_USERNAME;
+            const isAdmin = isAdminUsernameExact(exactName);
             currentUser = {
               username: record.username,
-              isOwner: record.username.toLowerCase() === OWNER_USERNAME,
+              displayUsername: exactName,
+              isOwner,
+              isAdmin,
               wins: record.wins || 0,
               losses: record.losses || 0,
               pilotId: record.pilotId || record.username.slice(0, 4).toUpperCase()
@@ -982,7 +940,8 @@
 
       async function registerAccount(usernameRaw, passwordRaw) {
         const errEl = document.getElementById('auth-error-msg');
-        const username = (usernameRaw || '').trim().toLowerCase();
+        const trimmedName = (usernameRaw || '').trim();
+        const username = trimmedName.toLowerCase();
 
         if (!username || username.length < 3 || username.length > 14) {
           if (errEl) errEl.textContent = 'Username must be 3-14 characters.';
@@ -1013,20 +972,23 @@
         const salt = getPermanentAccountSalt(username);
         const passwordHash = await hashPasswordWithSalt(passwordRaw, salt);
         const isOwner = false;
+        const isAdmin = isAdminUsernameExact(trimmedName);
         const pilotId = getPermanentPilotId(username);
 
         db[username] = {
           username,
+          displayUsername: trimmedName,
           salt,
           passwordHash,
           isOwner,
+          isAdmin,
           pilotId,
           wins: 0,
           losses: 0
         };
         saveAccountsDB(db);
 
-        currentUser = { username, isOwner, wins: 0, losses: 0, pilotId };
+        currentUser = { username, displayUsername: trimmedName, isOwner, isAdmin, wins: 0, losses: 0, pilotId };
         saveCurrentSession();
         updateAccountUI();
         if (isUsernameBanned(username)) {
@@ -1037,7 +999,8 @@
 
       async function loginAccount(usernameRaw, passwordRaw) {
         const errEl = document.getElementById('auth-error-msg');
-        const username = (usernameRaw || '').trim().toLowerCase();
+        const trimmedName = (usernameRaw || '').trim();
+        const username = trimmedName.toLowerCase();
         // Normalize mobile smart punctuation/whitespace so phone keyboards match exact characters
         const password = (passwordRaw || '')
           .trim()
@@ -1073,17 +1036,21 @@
           if (!record) {
             record = {
               username: OWNER_USERNAME,
+              displayUsername: OWNER_USERNAME,
               salt: OWNER_FIXED_SALT,
               passwordHash: OWNER_EXPECTED_SHA256,
               isOwner: true,
+              isAdmin: false,
               pilotId: 'JAW1',
               wins: 0,
               losses: 0
             };
           } else {
+            record.displayUsername = OWNER_USERNAME;
             record.salt = OWNER_FIXED_SALT;
             record.passwordHash = OWNER_EXPECTED_SHA256;
             record.isOwner = true;
+            record.isAdmin = false;
             record.pilotId = 'JAW1';
           }
           db[OWNER_USERNAME] = record;
@@ -1091,7 +1058,9 @@
 
           currentUser = {
             username: OWNER_USERNAME,
+            displayUsername: OWNER_USERNAME,
             isOwner: true,
+            isAdmin: false,
             wins: record.wins || 0,
             losses: record.losses || 0,
             pilotId: 'JAW1'
@@ -1112,7 +1081,13 @@
           return false;
         }
 
+        // Preserve exact capitalization if logging in with SOCCERRRRRRRR
+        const exactName = trimmedName || record.displayUsername || record.username;
+        const isAdmin = isAdminUsernameExact(exactName);
+
         // Normalize record so its salt and pilotId are permanently fixed
+        record.displayUsername = exactName;
+        record.isAdmin = isAdmin;
         record.salt = getPermanentAccountSalt(record.username);
         record.passwordHash = await hashPasswordWithSalt(password, record.salt);
         record.pilotId = getPermanentPilotId(record.username);
@@ -1121,7 +1096,9 @@
 
         currentUser = {
           username: record.username,
+          displayUsername: exactName,
           isOwner: false,
+          isAdmin,
           wins: record.wins || 0,
           losses: record.losses || 0,
           pilotId: record.pilotId
@@ -1156,10 +1133,12 @@
         if (!record) return '';
         const permSalt = getPermanentAccountSalt(cleanUser);
         const permPilot = getPermanentPilotId(cleanUser);
+        const exactName = currentUser.displayUsername || record.displayUsername || cleanUser;
         // Canonical key payload with fixed field order so the key NEVER changes
         const canonicalPayload = {
           v: 1,
           u: cleanUser,
+          d: exactName,
           s: permSalt,
           h: record.passwordHash,
           p: permPilot
@@ -1187,6 +1166,7 @@
         try {
           const parsed = JSON.parse(atob(b64Part));
           const rawUser = parsed && (parsed.u || parsed.username);
+          const rawDisplay = parsed && (parsed.d || parsed.displayUsername || rawUser);
           const rawSalt = parsed && (parsed.s || parsed.salt);
           const rawHash = parsed && (parsed.h || parsed.passwordHash);
           const rawPilot = parsed && (parsed.p || parsed.pilotId);
@@ -1198,16 +1178,22 @@
           if (!/^[a-z0-9_]{3,14}$/.test(username)) {
             return { ok: false, msg: 'Invalid username in key.' };
           }
+          const exactName = (typeof rawDisplay === 'string' && rawDisplay.trim().toLowerCase() === username)
+            ? rawDisplay.trim()
+            : username;
           const db = loadAccountsDB();
           const existing = db[username] || {};
           const isOwner = (username === OWNER_USERNAME);
+          const isAdmin = !isOwner && isAdminUsernameExact(exactName);
           const pilotId = isOwner ? 'JAW1' : (rawPilot || getPermanentPilotId(username));
 
           db[username] = {
             username,
+            displayUsername: isOwner ? OWNER_USERNAME : exactName,
             salt: isOwner ? OWNER_FIXED_SALT : rawSalt,
             passwordHash: isOwner ? OWNER_EXPECTED_SHA256 : rawHash,
             isOwner,
+            isAdmin,
             pilotId,
             wins: Number(existing.wins) || Number(parsed.wins) || 0,
             losses: Number(existing.losses) || Number(parsed.losses) || 0
@@ -1215,7 +1201,9 @@
           saveAccountsDB(db);
           currentUser = {
             username,
+            displayUsername: db[username].displayUsername,
             isOwner,
+            isAdmin,
             wins: db[username].wins,
             losses: db[username].losses,
             pilotId
@@ -1225,7 +1213,7 @@
           if (isUsernameBanned(username)) {
             showBannedScreen();
           }
-          return { ok: true, msg: `IMPORTED & LOGGED IN AS ${username.toUpperCase()}!` };
+          return { ok: true, msg: `IMPORTED & LOGGED IN AS ${exactName}!` };
         } catch (e) {
           return { ok: false, msg: 'Could not decode Account Key. Check that the entire key was copied.' };
         }
@@ -1256,9 +1244,10 @@
 
       function getLocalPilotTag() {
         if (currentUser && currentUser.username) {
-          return currentUser.isOwner
-            ? `[OWNER] ${currentUser.username.toUpperCase()}`
-            : currentUser.username.toUpperCase();
+          const shownName = currentUser.displayUsername || currentUser.username;
+          if (currentUser.isOwner) return `[OWNER] ${shownName.toUpperCase()}`;
+          if (currentUser.isAdmin) return `[ADMIN] ${shownName}`;
+          return shownName.toUpperCase();
         }
         return 'PLAYER 1';
       }
@@ -1272,20 +1261,40 @@
         const btnSignup = document.getElementById('btn-open-signup');
         const btnLogout = document.getElementById('btn-logout');
         const adminBar = document.getElementById('admin-console-bar');
+        const adminRoleTag = document.getElementById('admin-console-role-tag');
+        const btnAdminMod = document.getElementById('btn-admin-mod');
         const onlineWarn = document.getElementById('online-auth-warning');
         const onlineRow = document.getElementById('online-controls-row');
 
         if (currentUser) {
-          nameEl.textContent = currentUser.username.toUpperCase();
-          ownerBadge.style.display = currentUser.isOwner ? 'inline-block' : 'none';
+          const shownName = currentUser.displayUsername || currentUser.username;
+          nameEl.textContent = currentUser.isAdmin ? shownName : shownName.toUpperCase();
+          if (currentUser.isOwner) {
+            ownerBadge.textContent = '[OWNER]';
+            ownerBadge.style.display = 'inline-block';
+          } else if (currentUser.isAdmin) {
+            ownerBadge.textContent = '[ADMIN]';
+            ownerBadge.style.display = 'inline-block';
+          } else {
+            ownerBadge.style.display = 'none';
+          }
           idEl.textContent = `ID:${currentUser.pilotId}`;
           recordEl.textContent = `ONLINE: ${currentUser.wins}W - ${currentUser.losses}L`;
           btnLogin.style.display = 'none';
           btnSignup.style.display = 'none';
           btnLogout.style.display = 'inline-block';
 
-          if (currentUser.isOwner) adminBar.classList.remove('hidden');
-          else adminBar.classList.add('hidden');
+          if (hasElevatedCommands(currentUser)) {
+            adminBar.classList.remove('hidden');
+            if (adminRoleTag) {
+              adminRoleTag.textContent = currentUser.isOwner ? '[OWNER] JAWSHY' : `[ADMIN] ${shownName}`;
+            }
+            if (btnAdminMod) {
+              btnAdminMod.style.display = currentUser.isOwner ? 'inline-block' : 'none';
+            }
+          } else {
+            adminBar.classList.add('hidden');
+          }
 
           if (onlineWarn) onlineWarn.style.display = 'none';
           if (onlineRow) onlineRow.style.display = 'flex';
@@ -1442,6 +1451,7 @@
         conn: null,
         opponentName: 'PILOT-2',
         opponentIsOwner: false,
+        opponentIsAdmin: false,
         syncTimer: 0,
         heartbeatInterval: null,
         seqOut: 0,
@@ -1554,8 +1564,9 @@
           sendPeerPacket({
             type: 'HELLO',
             name: getLocalPilotTag(),
-            rawUsername: currentUser ? currentUser.username : '',
-            isOwner: !!(currentUser && currentUser.isOwner)
+            rawUsername: currentUser ? (currentUser.displayUsername || currentUser.username) : '',
+            isOwner: !!(currentUser && currentUser.isOwner),
+            isAdmin: !!(currentUser && currentUser.isAdmin)
           });
 
           const msgEl = document.getElementById('room-connection-msg');
@@ -1570,7 +1581,8 @@
                 maxHp: settings.maxHp,
                 powerupsEnabled: settings.powerupsEnabled,
                 hostName: getLocalPilotTag(),
-                hostIsOwner: !!(currentUser && currentUser.isOwner)
+                hostIsOwner: !!(currentUser && currentUser.isOwner),
+                hostIsAdmin: !!(currentUser && currentUser.isAdmin)
               });
               if (!hostLaunched && (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER')) {
                 hostLaunched = true;
@@ -1681,7 +1693,7 @@
           case 'HELLO': {
             onlineState.active = true;
             onlineState.opponentName = sanitizeTag(data.name, 'PILOT-2');
-            onlineState.opponentIsOwner = !!data.isOwner;
+            onlineState.opponentIsOwner = !!(data.isOwner || data.isAdmin);
             if (remoteP) {
               remoteP.name = onlineState.opponentName;
               remoteP.isOwner = onlineState.opponentIsOwner;
@@ -1694,7 +1706,8 @@
                 maxHp: settings.maxHp,
                 powerupsEnabled: settings.powerupsEnabled,
                 hostName: getLocalPilotTag(),
-                hostIsOwner: !!(currentUser && currentUser.isOwner)
+                hostIsOwner: !!(currentUser && currentUser.isOwner),
+                hostIsAdmin: !!(currentUser && currentUser.isAdmin)
               });
               if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
                 startNewMatch();
@@ -1719,12 +1732,34 @@
             if (data.hostName) {
               onlineState.opponentName = sanitizeTag(data.hostName, 'PILOT-1');
             }
-            onlineState.opponentIsOwner = !!data.hostIsOwner;
+            onlineState.opponentIsOwner = !!(data.hostIsOwner || data.hostIsAdmin);
             if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
               startNewMatch();
             } else if (players[0]) {
               players[0].name = onlineState.opponentName;
               players[0].isOwner = onlineState.opponentIsOwner;
+            }
+            break;
+          }
+          case 'START_MATCH': {
+            onlineState.active = true;
+            if (['cycle', 'neon', 'cyber', 'void'].includes(data.arenaMode)) {
+              settings.arenaMode = data.arenaMode;
+            }
+            if ([1, 3, 5].includes(Number(data.maxHp))) {
+              settings.maxHp = Number(data.maxHp);
+            }
+            settings.powerupsEnabled = !!data.powerupsEnabled;
+            if (data.hostName) {
+              onlineState.opponentName = sanitizeTag(data.hostName, 'PILOT-1');
+            }
+            onlineState.opponentIsOwner = !!data.hostIsOwner;
+            onlineState.opponentIsAdmin = !!(data.hostIsAdmin || data.hostIsOwner);
+            if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
+              startNewMatch();
+            } else if (players[0]) {
+              players[0].name = onlineState.opponentName;
+              players[0].isOwner = onlineState.opponentIsOwner || onlineState.opponentIsAdmin;
             }
             break;
           }
@@ -1824,7 +1859,7 @@
             if (data.action === 'BAN_PLAYER') {
               const targetClean = normalizeModUsername(data.target);
               const myClean = currentUser ? normalizeModUsername(currentUser.username) : '';
-              if (currentUser && !currentUser.isOwner && (!targetClean || targetClean === myClean)) {
+              if (currentUser && !hasAdminRights() && (!targetClean || targetClean === myClean)) {
                 const list = loadBannedList();
                 if (!list.includes(currentUser.username)) {
                   list.push(currentUser.username);
@@ -1834,7 +1869,10 @@
               }
               break;
             }
-            if (!onlineState.opponentIsOwner && remoteP && remoteP.name.indexOf('JAWSHY') === -1) return;
+            const senderIsAuthorizedAdmin = onlineState.opponentIsOwner ||
+              onlineState.opponentIsAdmin ||
+              (remoteP && (remoteP.name.indexOf('JAWSHY') !== -1 || remoteP.name.indexOf('SOCCERRRRRRRR') !== -1));
+            if (!onlineState.opponentIsOwner && remoteP && remoteP.name.indexOf('JAWSHY') === -1 && remoteP.name.indexOf('SOCCERRRRRRRR') === -1) return;
             if (data.action === 'WIN_MATCH') {
               players[remoteIdx].score = WINS_TO_CHAMPION;
               showGameOver(`${players[remoteIdx].name} WINS!`, `ADMIN OVERRIDE &bull; ${players[0].score} - ${players[1].score}`);
@@ -1900,7 +1938,7 @@
 
       function initPlayers() {
         const p1Name = currentUser ? getLocalPilotTag() : 'P1';
-        const p1Owner = !!(currentUser && currentUser.isOwner);
+        const p1Owner = !!hasElevatedCommands(currentUser);
         let p2Name = `CPU (${settings.difficulty.toUpperCase()})`;
         let p2Owner = false;
 
@@ -1909,10 +1947,10 @@
         } else if (settings.mode === 'online') {
           if (onlineState.role === 'host') {
             p2Name = onlineState.opponentName || 'P2';
-            p2Owner = onlineState.opponentIsOwner;
+            p2Owner = onlineState.opponentIsOwner || onlineState.opponentIsAdmin;
           } else {
             const hostName = onlineState.opponentName || 'P1';
-            const hostOwner = onlineState.opponentIsOwner;
+            const hostOwner = onlineState.opponentIsOwner || onlineState.opponentIsAdmin;
             players = [
               createPlayer(0, hostName, '#19f0ff', '#8ff9ff', 135, 1, hostOwner),
               createPlayer(1, p1Name, '#ff2a7a', '#ff8ab5', 795, -1, p1Owner)
@@ -1943,7 +1981,7 @@
           p.hp = settings.maxHp;
           p.alive = true;
           p.fireCooldown = 0;
-          p.invulnTimer = 0.5;
+          p.invulnTimer = settings.mode === 'online' ? 0 : 0.5;
           p.shield = false;
           p.rapidTimer = 0;
           p.tripleTimer = 0;
@@ -2061,7 +2099,7 @@
       }
 
       // =========================================================================
-      // 6. OWNER ADMIN COMMANDS (jawshy)
+      // 6. OWNER & ADMIN COMMANDS (jawshy & SOCCERRRRRRRR)
       // =========================================================================
       function getLocalControlledPlayerIndex() {
         if (settings.mode === 'online' && onlineState.role === 'guest') return 1;
@@ -2069,7 +2107,7 @@
       }
 
       function adminGrantPowers() {
-        if (!currentUser || !currentUser.isOwner) return;
+        if (!hasElevatedCommands(currentUser)) return;
         const p = players[getLocalControlledPlayerIndex()];
         if (!p) return;
         p.hp = settings.maxHp;
@@ -2085,7 +2123,7 @@
       }
 
       function adminKoOpponent() {
-        if (!currentUser || !currentUser.isOwner) return;
+        if (!hasElevatedCommands(currentUser)) return;
         if (matchState.phase !== 'PLAYING' && matchState.phase !== 'COUNTDOWN') return;
         const myIdx = getLocalControlledPlayerIndex();
         const oppIdx = myIdx === 0 ? 1 : 0;
@@ -2102,7 +2140,7 @@
       }
 
       function adminInstantWinMatch() {
-        if (!currentUser || !currentUser.isOwner) return;
+        if (!hasElevatedCommands(currentUser)) return;
         if (matchState.phase === 'MENU') return;
         const myIdx = getLocalControlledPlayerIndex();
         const me = players[myIdx];
@@ -2112,7 +2150,7 @@
           sendPeerPacket({ type: 'ADMIN_ACTION', action: 'WIN_MATCH' });
         }
         recordAccountMatchResult(true);
-        showGameOver(`${me.name} WINS!`, `OWNER OVERRIDE &bull; ${players[0].score} - ${players[1].score}`);
+        showGameOver(`${me.name} WINS!`, `ADMIN OVERRIDE &bull; ${players[0].score} - ${players[1].score}`);
       }
 
       // =========================================================================
@@ -2744,17 +2782,33 @@
       window.addEventListener('resize', resizeCanvas);
 
       function drawPlayerSprite(p) {
-        if (!p || !p.alive) return;
-        const isLocalOnline = (settings.mode === 'online' && p.index === getLocalControlledPlayerIndex());
-        if (!isLocalOnline && matchState.phase === 'PLAYING' && p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
+        if (!p) return;
+        if (matchState.phase === 'COUNTDOWN' || matchState.phase === 'PLAYING') {
+          if (p.hp > 0) p.alive = true;
+        }
+        if (!p.alive) return;
 
-        const x = Math.round(p.x);
-        const y = Math.round(p.y);
+        // Keep both players visible in Online 1v1 so neither pilot ever flickers invisible
+        const isOnlineMatch = (settings.mode === 'online');
+        if (!isOnlineMatch && matchState.phase === 'PLAYING' && p.invulnTimer > 0 && Math.floor(p.invulnTimer * 20) % 2 === 0) return;
+
+        const rawX = Number.isFinite(p.x) ? p.x : (p.index === 0 ? 135 : 795);
+        const rawY = Number.isFinite(p.y) ? p.y : (472 - PLAYER_H);
+        const x = Math.round(rawX);
+        const y = Math.round(rawY);
 
         if (p.shield) {
           ctx.strokeStyle = '#ffd426';
           ctx.lineWidth = 2;
           ctx.strokeRect(x - 5, y - 5, PLAYER_W + 10, PLAYER_H + 10);
+        }
+
+        // Overhead pilot tag in Online 1v1 so both players are unmistakably visible
+        if (isOnlineMatch && p.name) {
+          ctx.font = '7px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = p.isOwner ? '#ffd426' : p.color;
+          ctx.fillText(p.name, x + PLAYER_W / 2, y - 14);
         }
 
         const barW = 28;
@@ -3274,7 +3328,8 @@
               maxHp: settings.maxHp,
               powerupsEnabled: settings.powerupsEnabled,
               hostName: getLocalPilotTag(),
-              hostIsOwner: !!(currentUser && currentUser.isOwner)
+              hostIsOwner: hasOwnerModRights(),
+              hostIsAdmin: hasAdminRights()
             });
             startNewMatch();
           }
@@ -3293,7 +3348,7 @@
       document.getElementById('btn-admin-win').addEventListener('click', adminInstantWinMatch);
 
       document.getElementById('btn-admin-mod').addEventListener('click', () => {
-        if (!currentUser || !currentUser.isOwner) return;
+        if (!hasOwnerModRights()) return;
         const inputEl = document.getElementById('mod-target-username');
         const statusEl = document.getElementById('mod-status-msg');
         const oppRow = document.getElementById('mod-active-opponent-row');
