@@ -20,7 +20,7 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background-color: #090a12;
+      background-color: #0b0e1a;
       color: #f8fafc;
       font-family: 'Press Start 2P', monospace;
       overflow: hidden;
@@ -33,25 +33,21 @@
     #game-shell {
       position: relative;
       width: 100%;
-      max-width: 1200px;
       height: 100%;
-      max-height: 760px;
       display: flex;
       flex-direction: column;
-      padding: 10px 14px;
-      gap: 8px;
+      background: #0d1122;
     }
 
-    /* Top Retro Arcade HUD */
+    /* Top Arcade Status Bar (Matches Original Screenshot) */
     #top-hud {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #121526;
-      border: 4px solid #2b3252;
-      box-shadow: 0 4px 0 #05060b, inset 0 0 0 2px #1c213b;
-      padding: 10px 14px;
-      gap: 10px;
+      background: #0d1222;
+      border-bottom: 2px solid #1e2942;
+      padding: 10px 18px;
+      gap: 12px;
       flex-shrink: 0;
       z-index: 10;
     }
@@ -59,7 +55,7 @@
     .player-hud {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 7px;
       min-width: 170px;
     }
 
@@ -70,50 +66,51 @@
 
     .player-label {
       font-size: 11px;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .p1-color { color: #38f2ff; text-shadow: 2px 2px 0 #0c4a6e; }
-    .p2-color { color: #ff4791; text-shadow: 2px 2px 0 #701a3c; }
+    .p1-color { color: #38f2ff; }
+    .p2-color { color: #ff4791; }
 
     .hearts-row {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       align-items: center;
     }
 
     .heart-pip {
       width: 24px;
-      height: 12px;
-      background: #1e243b;
-      border: 2px solid #090b14;
-      box-shadow: 2px 2px 0 #06070d;
+      height: 11px;
+      background: #171e33;
+      border: 1px solid #26314f;
       transition: transform 0.1s ease;
     }
 
     .heart-pip.active-p1 {
-      background: #38f2ff;
-      box-shadow: 0 0 8px rgba(56, 242, 255, 0.6), 2px 2px 0 #06070d;
+      background: #22d3ee;
+      border-color: #67e8f9;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.55);
     }
 
     .heart-pip.active-p2 {
-      background: #ff4791;
-      box-shadow: 0 0 8px rgba(255, 71, 145, 0.6), 2px 2px 0 #06070d;
+      background: #f43f8e;
+      border-color: #fda4af;
+      box-shadow: 0 0 8px rgba(244, 63, 142, 0.55);
     }
 
     .status-badges {
       display: flex;
       gap: 5px;
-      min-height: 14px;
+      min-height: 12px;
     }
 
     .badge-chip {
-      font-size: 8px;
+      font-size: 7px;
       padding: 2px 5px;
-      border: 2px solid #090b14;
+      border-radius: 3px;
       background: #facc15;
       color: #090b14;
     }
@@ -130,7 +127,7 @@
     }
 
     #round-title {
-      font-size: 10px;
+      font-size: 9px;
       color: #94a3b8;
       letter-spacing: 1px;
     }
@@ -139,7 +136,8 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 15px;
+      font-size: 14px;
+      color: #f8fafc;
     }
 
     .score-pips {
@@ -148,40 +146,45 @@
     }
 
     .score-pip {
-      width: 10px;
-      height: 14px;
-      background: #1e243b;
-      border: 2px solid #090b14;
+      width: 11px;
+      height: 13px;
+      background: #1a2138;
+      border: 1px solid #273252;
     }
 
-    .score-pip.won-p1 { background: #38f2ff; }
-    .score-pip.won-p2 { background: #ff4791; }
+    .score-pip.won-p1 {
+      background: #22d3ee;
+      border-color: #67e8f9;
+      box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+    }
+
+    .score-pip.won-p2 {
+      background: #f43f8e;
+      border-color: #fda4af;
+      box-shadow: 0 0 6px rgba(244, 63, 142, 0.5);
+    }
 
     #hud-controls {
       display: flex;
       gap: 6px;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .hud-btn {
       font-family: 'Press Start 2P', monospace;
-      font-size: 8px;
-      padding: 5px 8px;
-      background: #1e243b;
-      color: #e2e8f0;
-      border: 2px solid #3b446b;
-      box-shadow: 2px 2px 0 #06070d;
+      font-size: 7px;
+      padding: 4px 7px;
+      background: #141a2e;
+      color: #94a3b8;
+      border: 1px solid #2a3556;
+      border-radius: 4px;
       cursor: pointer;
     }
 
     .hud-btn:hover {
-      background: #2c3554;
-      border-color: #64748b;
-    }
-
-    .hud-btn:active {
-      transform: translate(1px, 1px);
-      box-shadow: 1px 1px 0 #06070d;
+      background: #1e2744;
+      color: #f8fafc;
+      border-color: #38bdf8;
     }
 
     /* Arena Container */
@@ -189,9 +192,7 @@
       position: relative;
       flex: 1;
       width: 100%;
-      background: #0d101d;
-      border: 4px solid #2b3252;
-      box-shadow: 0 6px 0 #05060b, inset 0 0 0 2px #171c33;
+      background: #0c0f1d;
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -206,32 +207,19 @@
       image-rendering: crisp-edges;
     }
 
-    /* Subtle CRT Scanline Overlay */
-    #crt-overlay {
-      pointer-events: none;
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        rgba(18, 16, 16, 0) 50%,
-        rgba(0, 0, 0, 0.22) 50%
-      );
-      background-size: 100% 4px;
-      z-index: 4;
-    }
-
-    /* Screen Overlays (Title, Pause, Match End) */
+    /* Screen Overlays (Original Sleek Rounded Dark Navy Card Style) */
     .overlay-screen {
       position: absolute;
       inset: 0;
-      background: rgba(9, 11, 20, 0.88);
+      background: rgba(8, 11, 22, 0.84);
+      backdrop-filter: blur(2px);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 14px;
       z-index: 20;
       text-align: center;
-      gap: 12px;
       overflow-y: auto;
     }
 
@@ -240,183 +228,249 @@
     }
 
     .pixel-card {
-      background: #131729;
-      border: 4px solid #38bdf8;
-      box-shadow: 0 8px 0 #05060b, inset 0 0 0 3px #1e2542;
+      background: #101526;
+      border: 2px solid #273454;
+      border-radius: 14px;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.72), inset 0 0 0 1px rgba(56, 242, 255, 0.08);
       padding: 20px 24px;
-      max-width: 680px;
+      max-width: 780px;
       width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 14px;
+      gap: 11px;
     }
 
     .game-title {
-      font-size: clamp(20px, 3.6vw, 34px);
-      line-height: 1.25;
-      color: #38f2ff;
-      text-shadow: 4px 4px 0 #ff4791, 6px 6px 0 #05060b;
+      font-size: clamp(22px, 3.8vw, 36px);
+      line-height: 1.2;
+      letter-spacing: 2px;
+      margin: 0;
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .title-pixel {
+      color: #4ef2ff;
+      text-shadow: 0 0 16px rgba(78, 242, 255, 0.35);
+    }
+
+    .title-laser {
+      color: #ff6b9d;
+      text-shadow: 0 0 16px rgba(255, 107, 157, 0.35);
+    }
+
+    .subtitle-gold {
+      font-size: 9px;
+      color: #facc15;
+      letter-spacing: 0.8px;
       margin: 0;
     }
 
-    .subtitle {
-      font-size: 10px;
-      color: #cbd5e1;
-      line-height: 1.6;
-      max-width: 520px;
-    }
-
-    .selector-group {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
+    /* Section Boxes Matching Original Screenshot */
+    .menu-section-box {
       width: 100%;
-    }
-
-    .selector-box {
+      background: #0d1221;
+      border: 1.5px solid #222d4a;
+      border-radius: 8px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      background: #0d101e;
-      border: 2px solid #28304d;
-      padding: 8px 10px;
-      flex: 1;
-      min-width: 185px;
+      align-items: flex-start;
+      gap: 8px;
     }
 
-    .selector-title {
+    .section-label {
       font-size: 8px;
-      color: #94a3b8;
+      color: #7c8db5;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
     }
 
-    .option-row {
+    .section-btn-row {
       display: flex;
-      gap: 5px;
+      width: 100%;
+      gap: 8px;
       flex-wrap: wrap;
-      justify-content: center;
     }
 
-    .retro-btn {
+    .choice-btn {
       font-family: 'Press Start 2P', monospace;
-      font-size: 9px;
-      padding: 8px 10px;
-      background: #1c223b;
+      font-size: 8.5px;
+      padding: 10px 10px;
+      flex: 1;
+      min-width: 110px;
+      background: #171f36;
       color: #cbd5e1;
-      border: 3px solid #334155;
-      box-shadow: 3px 3px 0 #05060b;
+      border: 1.5px solid #2a3759;
+      border-radius: 6px;
       cursor: pointer;
-      transition: transform 0.06s ease;
+      transition: all 0.12s ease;
+      text-align: center;
     }
 
-    .retro-btn:hover {
-      background: #262f52;
+    .choice-btn:hover {
+      background: #1e2947;
       color: #ffffff;
+      border-color: #475d94;
     }
 
-    .retro-btn.selected {
-      background: #0ea5e9;
-      color: #05060b;
-      border-color: #bae6fd;
+    .choice-btn.selected {
+      background: #0e384c;
+      color: #38f2ff;
+      border: 2px solid #22d3ee;
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
     }
 
-    .retro-btn.primary {
-      font-size: 13px;
-      padding: 13px 24px;
-      background: #38f2ff;
-      color: #060812;
-      border-color: #ffffff;
-      box-shadow: 4px 4px 0 #ff4791, 7px 7px 0 #05060b;
-      margin-top: 2px;
+    .choice-btn.selected-green {
+      background: #0c3b36;
+      color: #34d399;
+      border: 2px solid #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
     }
 
-    .retro-btn.primary:hover {
-      background: #67f5ff;
+    .choice-btn.selected-orange {
+      background: #3d280e;
+      color: #fbbf24;
+      border: 2px solid #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.28);
     }
 
-    .retro-btn.primary:active {
-      transform: translate(2px, 2px);
-      box-shadow: 2px 2px 0 #ff4791, 4px 4px 0 #05060b;
-    }
-
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+    /* Pilot Account Strip (Matches Original Top Box) */
+    .pilot-strip {
       width: 100%;
-      font-size: 8px;
-      line-height: 1.7;
-      text-align: left;
-      background: #0c0f1c;
-      border: 2px solid #252c47;
-      padding: 10px 12px;
-    }
-
-    /* Account Bar & Modals */
-    #account-bar {
-      width: 100%;
+      background: #0d1221;
+      border: 1.5px solid #222d4a;
+      border-radius: 8px;
+      padding: 8px 12px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      background: #0b0e1a;
-      border: 2px solid #2d3659;
-      padding: 8px 12px;
       font-size: 8px;
     }
 
-    .account-info {
+    .pilot-left {
       display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .pilot-pill {
+      background: #141c33;
+      border: 1.5px solid #2d3d66;
+      border-radius: 5px;
+      padding: 5px 10px;
+      color: #38f2ff;
+      font-size: 8.5px;
+    }
+
+    .pilot-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: #94a3b8;
+      font-size: 7.5px;
     }
 
     .owner-tag {
       background: #facc15;
       color: #090b14;
       padding: 2px 5px;
+      border-radius: 3px;
       font-size: 7px;
-      border: 1px solid #fef08a;
-    }
-
-    .id-tag {
-      color: #64748b;
-      font-size: 7px;
-    }
-
-    .account-actions {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
+      font-weight: bold;
     }
 
     .mini-btn {
       font-family: 'Press Start 2P', monospace;
       font-size: 7px;
-      padding: 6px 8px;
-      background: #1e2542;
+      padding: 6px 9px;
+      background: #171f36;
       color: #e2e8f0;
-      border: 2px solid #3b4670;
-      box-shadow: 2px 2px 0 #05060b;
+      border: 1.5px solid #2f3f69;
+      border-radius: 5px;
       cursor: pointer;
     }
 
-    .mini-btn:hover { background: #2c365e; }
-    .mini-btn.gold { background: #facc15; color: #090b14; border-color: #fef08a; }
-    .mini-btn.danger { background: #e11d48; color: #fff; border-color: #fda4af; }
-    .mini-btn.cyan { background: #38f2ff; color: #090b14; border-color: #ffffff; }
+    .mini-btn:hover { background: #222e4f; border-color: #38f2ff; }
+    .mini-btn.gold { background: #facc15; color: #090b14; border-color: #fde047; }
+    .mini-btn.danger { background: #e11d48; color: #fff; border-color: #fb7185; }
+    .mini-btn.cyan { background: #0e384c; color: #38f2ff; border-color: #22d3ee; }
+
+    /* Controls Grid Matching Original Screenshot */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .control-card {
+      background: #0d1221;
+      border: 1.5px solid #222d4a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 7.5px;
+      line-height: 1.75;
+      text-align: left;
+      color: #e2e8f0;
+    }
+
+    /* Gold Rounded Start Match Button (Matches Original Screenshot) */
+    .gold-start-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 13px;
+      padding: 14px 30px;
+      background: linear-gradient(180deg, #fde047 0%, #eab308 100%);
+      color: #090b14;
+      border: 2px solid #fef08a;
+      border-radius: 8px;
+      box-shadow: 0 4px 0 #a16207, 0 0 20px rgba(250, 204, 21, 0.35);
+      cursor: pointer;
+      margin-top: 2px;
+      transition: transform 0.08s ease;
+    }
+
+    .gold-start-btn:hover {
+      filter: brightness(1.06);
+    }
+
+    .gold-start-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #a16207;
+    }
+
+    .retro-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      padding: 10px 14px;
+      background: #171f36;
+      color: #cbd5e1;
+      border: 1.5px solid #2f3f69;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .retro-btn:hover {
+      background: #222e4f;
+      color: #ffffff;
+      border-color: #38f2ff;
+    }
 
     .retro-input {
       font-family: 'Press Start 2P', monospace;
-      font-size: 9px;
-      padding: 8px 10px;
-      background: #090b14;
+      font-size: 8.5px;
+      padding: 9px 10px;
+      background: #090d1a;
       color: #38f2ff;
-      border: 2px solid #3b4670;
+      border: 1.5px solid #2d3d66;
+      border-radius: 6px;
       outline: none;
       width: 100%;
     }
@@ -425,16 +479,17 @@
       border-color: #38f2ff;
     }
 
-    /* Online Lobby & Admin Bar */
+    /* Online 1v1 Panel */
     #online-panel {
       width: 100%;
-      background: #0d1122;
-      border: 2px solid #38f2ff;
-      padding: 10px;
-      display: flex;
+      background: #0b1926;
+      border: 1.5px solid #10b981;
+      border-radius: 8px;
+      padding: 9px 12px;
+      display: none;
       flex-direction: column;
-      gap: 8px;
-      font-size: 8px;
+      gap: 7px;
+      font-size: 7.5px;
     }
 
     .online-row {
@@ -446,16 +501,17 @@
     }
 
     #room-code-display {
-      font-size: 13px;
+      font-size: 12px;
       color: #facc15;
       background: #090b14;
-      border: 2px dashed #facc15;
-      padding: 6px 12px;
+      border: 1.5px dashed #facc15;
+      border-radius: 5px;
+      padding: 6px 11px;
       letter-spacing: 2px;
       cursor: pointer;
     }
 
-    /* Top-center Admin / Owner Console Bar */
+    /* Top-Center Owner / Admin Console Bar */
     #admin-floating-bar {
       position: absolute;
       top: 10px;
@@ -466,9 +522,10 @@
       flex-wrap: wrap;
       justify-content: center;
       gap: 6px;
-      background: rgba(11, 14, 26, 0.96);
-      border: 2px solid #facc15;
-      box-shadow: 0 4px 0 #05060b;
+      background: rgba(13, 18, 33, 0.96);
+      border: 1.5px solid #facc15;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
       padding: 6px 10px;
       font-size: 7px;
       align-items: center;
@@ -482,8 +539,9 @@
       width: 100%;
       max-height: 150px;
       overflow-y: auto;
-      background: #090b14;
-      border: 2px solid #2b3252;
+      background: #090d1a;
+      border: 1.5px solid #222d4a;
+      border-radius: 6px;
       padding: 8px;
       display: flex;
       flex-direction: column;
@@ -497,9 +555,10 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
-      padding: 5px;
-      background: #13182b;
-      border: 1px solid #28304d;
+      padding: 6px;
+      background: #12182b;
+      border: 1px solid #263354;
+      border-radius: 4px;
     }
 
     /* Mobile / Touch Controls */
@@ -508,7 +567,9 @@
       width: 100%;
       justify-content: space-between;
       align-items: center;
-      padding: 4px 2px;
+      padding: 6px 10px;
+      background: #0d1222;
+      border-top: 2px solid #1e2942;
       gap: 10px;
       flex-shrink: 0;
     }
@@ -520,13 +581,13 @@
 
     .touch-btn {
       font-family: 'Press Start 2P', monospace;
-      font-size: 13px;
-      width: 54px;
-      height: 50px;
-      background: #1a2038;
+      font-size: 12px;
+      width: 52px;
+      height: 46px;
+      background: #171f36;
       color: #f8fafc;
-      border: 3px solid #3b4670;
-      box-shadow: 3px 3px 0 #05060b;
+      border: 1.5px solid #2f3f69;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -534,38 +595,27 @@
     }
 
     .touch-btn:active, .touch-btn.pressed {
-      background: #38f2ff;
+      background: #22d3ee;
       color: #060812;
-      transform: translate(2px, 2px);
     }
 
     .touch-btn.fire-btn {
       width: 72px;
-      background: #ff4791;
+      background: #f43f8e;
       color: #060812;
-      border-color: #fbcfe8;
+      border-color: #fda4af;
     }
 
     @media (pointer: coarse), (max-width: 768px) {
       #mobile-controls {
         display: flex;
       }
-      #game-shell {
-        padding: 6px 8px;
-        gap: 6px;
-      }
-      .player-hud {
-        min-width: 120px;
-      }
-      .player-label {
-        font-size: 9px;
-      }
-      .heart-pip {
-        width: 16px;
-        height: 10px;
-      }
       .controls-grid {
         grid-template-columns: 1fr;
+      }
+      .pixel-card {
+        padding: 14px 14px;
+        gap: 8px;
       }
     }
   </style>
@@ -576,7 +626,7 @@
     <header id="top-hud">
       <div class="player-hud">
         <div class="player-label p1-color">
-          <span id="p1-name">P1 CYAN</span>
+          <span id="p1-name">P1</span>
         </div>
         <div class="hearts-row" id="p1-hearts"></div>
         <div class="status-badges" id="p1-badges"></div>
@@ -598,7 +648,7 @@
 
       <div class="player-hud right">
         <div class="player-label p2-color">
-          <span id="p2-name">CPU BOT</span>
+          <span id="p2-name">CPU (EXTREME)</span>
         </div>
         <div class="hearts-row" id="p2-hearts"></div>
         <div class="status-badges" id="p2-badges"></div>
@@ -608,7 +658,6 @@
     <!-- Main Pixel Arena -->
     <main id="arena-wrapper">
       <canvas id="gameCanvas"></canvas>
-      <div id="crt-overlay"></div>
 
       <!-- Owner / Admin Floating Bar -->
       <div id="admin-floating-bar" class="hidden">
@@ -619,111 +668,117 @@
         <button class="mini-btn danger" id="btn-admin-mod">MODERATION</button>
       </div>
 
-      <!-- Title / Setup Overlay -->
+      <!-- Title / Setup Overlay (Original Sleek Dark Navy UI) -->
       <section class="overlay-screen" id="start-overlay">
         <div class="pixel-card">
-          <h1 class="game-title">PIXEL LASER</h1>
-          <p class="subtitle">
-            16-BIT ARENA BLASTER! BLAST YOUR RIVAL WITH RICOCHET LASERS, GRAB POWER-UP CRATES, AND WIN 5 ROUNDS.
-          </p>
+          <h1 class="game-title">
+            <span class="title-pixel">PIXEL</span>
+            <span class="title-laser">LASER</span>
+          </h1>
+          <p class="subtitle-gold">16-BIT ARENA BLASTER • FIRST TO 5 ROUND WINS</p>
 
           <!-- Pilot Account Strip -->
-          <div id="account-bar">
-            <div class="account-info">
-              <span style="color:#94a3b8;">PILOT:</span>
-              <span id="acct-display-name" style="color:#38f2ff;">GUEST</span>
+          <div class="pilot-strip">
+            <div class="pilot-left">
+              <span style="color:#7c8db5;">PILOT:</span>
+              <span class="pilot-pill" id="acct-display-name">GUEST</span>
               <span id="acct-owner-badge" class="owner-tag" style="display:none;">[OWNER]</span>
-              <span id="acct-id-badge" class="id-tag"></span>
-              <span id="acct-record" style="color:#4ade80; display:none;"></span>
-            </div>
-            <div class="account-actions">
               <button class="mini-btn cyan" id="btn-open-login">LOG IN</button>
               <button class="mini-btn" id="btn-open-signup">SIGN UP</button>
               <button class="mini-btn" id="btn-account-key" style="display:none;" title="Backup or Transfer Account Key">KEY</button>
               <button class="mini-btn danger" id="btn-logout" style="display:none;">LOG OUT</button>
             </div>
-          </div>
-
-          <div class="selector-group">
-            <div class="selector-box">
-              <span class="selector-title">GAME MODE</span>
-              <div class="option-row" id="mode-options">
-                <button class="retro-btn selected" data-mode="cpu">1 VS CPU</button>
-                <button class="retro-btn" data-mode="pvp">2P LOCAL</button>
-                <button class="retro-btn" data-mode="online">ONLINE 1V1</button>
-              </div>
-            </div>
-
-            <div class="selector-box" id="difficulty-box">
-              <span class="selector-title">BOT SKILL</span>
-              <div class="option-row" id="diff-options">
-                <button class="retro-btn" data-diff="rookie">ROOKIE</button>
-                <button class="retro-btn selected" data-diff="ace">ACE</button>
-                <button class="retro-btn" data-diff="cyber">CYBER</button>
-              </div>
-            </div>
-
-            <div class="selector-box">
-              <span class="selector-title">ARENA STAGE</span>
-              <div class="option-row" id="arena-options">
-                <button class="retro-btn selected" data-arena="0">NEON ROOF</button>
-                <button class="retro-btn" data-arena="1">CYBER LAB</button>
-                <button class="retro-btn" data-arena="2">SKY TOWERS</button>
-              </div>
+            <div class="pilot-right">
+              <span id="acct-id-badge">ID:GUEST</span>
+              <span>•</span>
+              <span id="acct-record">ONLINE: 0W - 0L</span>
             </div>
           </div>
 
-          <!-- Online 1v1 Lobby Panel -->
-          <div id="online-panel" style="display:none;">
-            <div id="online-login-warning" style="color:#fb7185;">
-              LOG IN OR SIGN UP TO PLAY ONLINE 1V1!
+          <!-- Select Game Mode -->
+          <div class="menu-section-box">
+            <span class="section-label">SELECT GAME MODE</span>
+            <div class="section-btn-row" id="mode-options">
+              <button class="choice-btn selected" data-mode="cpu">1 VS CPU</button>
+              <button class="choice-btn" data-mode="pvp">1 VS 1 (LOCAL)</button>
+              <button class="choice-btn" data-mode="online">ONLINE 1V1 (CODE)</button>
             </div>
-            <div id="online-controls-row" style="display:none; flex-direction:column; gap:8px;">
-              <div class="online-row">
-                <button class="mini-btn cyan" id="btn-create-room">CREATE CODE</button>
-                <span id="room-code-display" style="display:none;" title="Click to Copy Code">-----</span>
-                <span style="color:#64748b;">OR</span>
-                <input type="text" id="join-code-input" class="retro-input" style="width:120px; text-transform:uppercase;" maxlength="6" placeholder="CODE" />
-                <button class="mini-btn gold" id="btn-join-room">JOIN</button>
+
+            <!-- Online 1v1 Lobby Panel -->
+            <div id="online-panel">
+              <div id="online-login-warning" style="color:#fb7185;">
+                LOG IN OR SIGN UP TO PLAY ONLINE 1V1!
               </div>
-              <div id="online-status-text" style="color:#94a3b8; font-size:7px;">
-                CREATE A CODE FOR A FRIEND OR ENTER THEIR CODE TO BATTLE!
+              <div id="online-controls-row" style="display:none; flex-direction:column; gap:7px; width:100%;">
+                <div class="online-row">
+                  <button class="mini-btn cyan" id="btn-create-room">CREATE CODE</button>
+                  <span id="room-code-display" style="display:none;" title="Click to Copy Code">-----</span>
+                  <span style="color:#64748b;">OR</span>
+                  <input type="text" id="join-code-input" class="retro-input" style="width:120px; text-transform:uppercase;" maxlength="6" placeholder="CODE" />
+                  <button class="mini-btn gold" id="btn-join-room">JOIN</button>
+                </div>
+                <div id="online-status-text" style="color:#94a3b8; font-size:7px;">
+                  CREATE A CODE FOR A FRIEND OR ENTER THEIR CODE TO BATTLE!
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="controls-grid" id="controls-help">
-            <div>
-              <span class="p1-color">P1 (CYAN):</span><br />
-              MOVE: A / D  •  JUMP: W<br />
-              SHOOT: SPACE or F
-            </div>
-            <div id="p2-help-text">
-              <span class="p2-color">CPU BOT:</span><br />
-              ADAPTIVE AI OPPONENT<br />
-              WATCH OUT FOR RICOCHETS!
+          <!-- CPU Difficulty -->
+          <div class="menu-section-box" id="difficulty-box">
+            <span class="section-label">CPU DIFFICULTY</span>
+            <div class="section-btn-row" id="diff-options">
+              <button class="choice-btn" data-diff="easy">EASY</button>
+              <button class="choice-btn" data-diff="medium">MEDIUM</button>
+              <button class="choice-btn" data-diff="hard">HARD</button>
+              <button class="choice-btn" data-diff="impossible">IMPOSSIBLE</button>
+              <button class="choice-btn selected-orange" data-diff="extreme">EXTREME</button>
             </div>
           </div>
 
-          <button class="retro-btn primary" id="btn-start-match">▶ START MATCH</button>
+          <!-- Arena & Round Rules -->
+          <div class="menu-section-box">
+            <span class="section-label">ARENA &amp; ROUND RULES</span>
+            <div class="section-btn-row">
+              <button class="choice-btn selected" id="btn-cycle-arena">ARENA: CYCLE ALL</button>
+              <button class="choice-btn selected" id="btn-cycle-hp">ROUND HP: 3 HITS</button>
+              <button class="choice-btn selected" id="btn-toggle-powerups">POWERUPS: ON</button>
+            </div>
+          </div>
+
+          <!-- Controls Cards -->
+          <div class="controls-grid">
+            <div class="control-card">
+              <span class="p1-color">PLAYER 1 (CYAN)</span><br />
+              MOVE: A / D (or ◀ / ▶ in 1vCPU)<br />
+              JUMP: W (or ▲) • SHOOT: SPACE (HOLD 3S = MEGA)
+            </div>
+            <div class="control-card" id="p2-help-text">
+              <span class="p2-color">PLAYER 2 (MAGENTA)</span><br />
+              MOVE: ◀ / ▶ ARROWS<br />
+              JUMP: ▲ ARROW • SHOOT: ENTER / M (HOLD 3S = MEGA)
+            </div>
+          </div>
+
+          <button class="gold-start-btn" id="btn-start-match">▶ START MATCH</button>
         </div>
       </section>
 
       <!-- Auth Modal (Log In / Sign Up) -->
       <section class="overlay-screen hidden" id="auth-overlay">
         <div class="pixel-card" style="max-width:440px;">
-          <h2 id="auth-modal-title" style="font-size:16px; color:#38f2ff; margin:0;">PILOT LOG IN</h2>
-          <p id="auth-modal-sub" class="subtitle" style="font-size:8px;">
-            ENTER YOUR PILOT USERNAME & PASSWORD
+          <h2 id="auth-modal-title" style="font-size:15px; color:#38f2ff; margin:0;">PILOT LOG IN</h2>
+          <p id="auth-modal-sub" style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
+            ENTER YOUR PILOT USERNAME &amp; PASSWORD
           </p>
           <input type="text" id="auth-username" class="retro-input" maxlength="16" placeholder="USERNAME" autocomplete="username" />
           <input type="password" id="auth-password" class="retro-input" maxlength="32" placeholder="PASSWORD" autocomplete="current-password" />
-          <div id="auth-error" style="color:#fb7185; font-size:8px; min-height:12px;"></div>
+          <div id="auth-error" style="color:#fb7185; font-size:7.5px; min-height:12px;"></div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-            <button class="retro-btn primary" id="btn-auth-submit" style="font-size:10px; padding:10px 18px;">CONFIRM</button>
+            <button class="gold-start-btn" id="btn-auth-submit" style="font-size:10px; padding:10px 18px;">CONFIRM</button>
             <button class="retro-btn" id="btn-auth-cancel">CANCEL</button>
           </div>
-          <div style="border-top:2px solid #252c47; width:100%; padding-top:10px; margin-top:2px; display:flex; flex-direction:column; gap:6px; align-items:center;">
+          <div style="border-top:1.5px solid #222d4a; width:100%; padding-top:10px; margin-top:2px; display:flex; flex-direction:column; gap:6px; align-items:center;">
             <span style="font-size:7px; color:#94a3b8;">HAVE AN ACCOUNT KEY FROM ANOTHER DEVICE?</span>
             <div style="display:flex; gap:6px; width:100%;">
               <input type="text" id="auth-key-input" class="retro-input" style="font-size:7px;" placeholder="PASTE PLKEY1:... HERE" />
@@ -736,14 +791,14 @@
       <!-- Account Key Backup Modal -->
       <section class="overlay-screen hidden" id="key-overlay">
         <div class="pixel-card" style="max-width:500px;">
-          <h2 style="font-size:15px; color:#facc15; margin:0;">PILOT ACCOUNT KEY</h2>
-          <p class="subtitle" style="font-size:8px;">
+          <h2 style="font-size:14px; color:#facc15; margin:0;">PILOT ACCOUNT KEY</h2>
+          <p style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
             COPY THIS KEY TO LOG INTO YOUR ACCOUNT ON ANY OTHER BROWSER OR DEVICE!
           </p>
           <textarea id="account-key-output" class="retro-input" rows="4" readonly style="font-size:7px; resize:none; word-break:break-all;"></textarea>
           <div id="key-copy-status" style="color:#4ade80; font-size:7px; min-height:10px;"></div>
           <div style="display:flex; gap:10px;">
-            <button class="retro-btn primary" id="btn-copy-account-key" style="font-size:10px; padding:10px 16px;">COPY KEY</button>
+            <button class="gold-start-btn" id="btn-copy-account-key" style="font-size:10px; padding:10px 16px;">COPY KEY</button>
             <button class="retro-btn" id="btn-close-key">CLOSE</button>
           </div>
         </div>
@@ -752,15 +807,15 @@
       <!-- Owner Moderation Panel (Exclusive to jawshy) -->
       <section class="overlay-screen hidden" id="mod-overlay">
         <div class="pixel-card" style="max-width:560px;">
-          <h2 style="font-size:15px; color:#facc15; margin:0;">[OWNER] JAWSHY MODERATION</h2>
-          <p class="subtitle" style="font-size:8px;">
-            BAN OR UNBAN ACCOUNTS BY USERNAME OR PILOT ID (WORKS ACROSS DEVICES & ONLINE LOBBIES)
+          <h2 style="font-size:14px; color:#facc15; margin:0;">[OWNER] JAWSHY MODERATION</h2>
+          <p style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
+            BAN OR UNBAN ACCOUNTS BY USERNAME OR PILOT ID (WORKS ACROSS DEVICES &amp; ONLINE LOBBIES)
           </p>
           <div style="display:flex; gap:8px; width:100%;">
             <input type="text" id="mod-ban-input" class="retro-input" placeholder="USERNAME OR PILOT ID TO BAN" />
             <button class="mini-btn danger" id="btn-mod-ban">BAN</button>
           </div>
-          <div style="width:100%; text-align:left; font-size:8px; color:#94a3b8;">BANNED ACCOUNTS & REGISTERED PILOTS:</div>
+          <div style="width:100%; text-align:left; font-size:7.5px; color:#94a3b8;">BANNED ACCOUNTS &amp; REGISTERED PILOTS:</div>
           <div class="mod-list" id="mod-accounts-list"></div>
           <button class="retro-btn" id="btn-close-mod">CLOSE PANEL</button>
         </div>
@@ -769,10 +824,10 @@
       <!-- Pause Overlay -->
       <section class="overlay-screen hidden" id="pause-overlay">
         <div class="pixel-card" style="max-width: 420px;">
-          <h2 style="font-size: 20px; color: #facc15; margin: 0;">GAME PAUSED</h2>
-          <p class="subtitle">TAKE A BREATHER, PILOT.</p>
+          <h2 style="font-size: 18px; color: #facc15; margin: 0;">GAME PAUSED</h2>
+          <p style="font-size: 8px; color: #94a3b8;">TAKE A BREATHER, PILOT.</p>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
-            <button class="retro-btn primary" id="btn-resume">RESUME</button>
+            <button class="gold-start-btn" id="btn-resume" style="font-size:10px; padding:10px 16px;">RESUME</button>
             <button class="retro-btn" id="btn-restart-match">RESTART</button>
             <button class="retro-btn" id="btn-quit-menu">MAIN MENU</button>
           </div>
@@ -782,13 +837,13 @@
       <!-- Match Victory Overlay -->
       <section class="overlay-screen hidden" id="gameover-overlay">
         <div class="pixel-card" style="max-width: 480px;">
-          <div style="font-size: 10px; color: #facc15;">MATCH COMPLETE</div>
-          <h2 id="winner-headline" style="font-size: 22px; color: #38f2ff; margin: 0; line-height: 1.3;">
-            P1 CYAN WINS!
+          <div style="font-size: 9px; color: #facc15;">MATCH COMPLETE</div>
+          <h2 id="winner-headline" style="font-size: 20px; color: #38f2ff; margin: 0; line-height: 1.3;">
+            P1 WINS!
           </h2>
-          <p id="winner-subtext" class="subtitle">FINAL SCORE: 5 - 3</p>
+          <p id="winner-subtext" style="font-size: 9px; color: #cbd5e1;">FINAL SCORE: 5 - 3</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
-            <button class="retro-btn primary" id="btn-play-again">▶ REMATCH</button>
+            <button class="gold-start-btn" id="btn-play-again" style="font-size:11px; padding:12px 20px;">▶ REMATCH</button>
             <button class="retro-btn" id="btn-gameover-menu">MAIN MENU</button>
           </div>
         </div>
@@ -852,8 +907,12 @@
           osc.stop(now + duration);
         }
 
-        shoot(isTriple = false) {
-          this.playTone(isTriple ? 960 : 780, 190, 0.11, 'square', 0.07);
+        shoot(isTriple = false, isMega = false) {
+          if (isMega) {
+            this.playTone(420, 95, 0.24, 'sawtooth', 0.12);
+          } else {
+            this.playTone(isTriple ? 960 : 780, 190, 0.11, 'square', 0.07);
+          }
         }
 
         ricochet() {
@@ -915,7 +974,7 @@
       resizeCanvas();
 
       // =========================================================================
-      // 3. ACCOUNTS, PERSISTENT IDs, OWNER ('jawshy'), & ADMIN ('SOCCERRRRRRRR' / KEY)
+      // 3. ACCOUNTS, PERMANENT PILOT IDs, OWNER ('jawshy') & ADMIN ('SOCCERRRRRRRR' / KEY)
       // =========================================================================
       const OWNER_USERNAME = 'jawshy';
       const ADMIN_USERNAME = 'SOCCERRRRRRRR';
@@ -963,10 +1022,7 @@
         const clean = String(identifier || '').trim().toLowerCase();
         if (!clean || clean === OWNER_USERNAME) return false;
         const bans = getBannedMap();
-        bans[clean] = {
-          bannedAt: new Date().toISOString(),
-          reason
-        };
+        bans[clean] = { bannedAt: new Date().toISOString(), reason };
         const users = getUsersMap();
         if (users[clean] && users[clean].pilotId) {
           bans[users[clean].pilotId.toLowerCase()] = { bannedAt: new Date().toISOString(), reason };
@@ -1222,8 +1278,7 @@
           } else {
             ownerBadge.style.display = 'none';
           }
-          idEl.textContent = `ID:${currentUser.pilotId.slice(0, 10)}...`;
-          recordEl.style.display = 'inline-block';
+          idEl.textContent = `ID:${currentUser.pilotId.slice(0, 6).toUpperCase()}`;
           recordEl.textContent = `ONLINE: ${currentUser.wins || 0}W - ${currentUser.losses || 0}L`;
           btnLogin.style.display = 'none';
           btnSignup.style.display = 'none';
@@ -1247,8 +1302,8 @@
         } else {
           nameEl.textContent = 'GUEST';
           ownerBadge.style.display = 'none';
-          idEl.textContent = '';
-          recordEl.style.display = 'none';
+          idEl.textContent = 'ID:GUEST';
+          recordEl.textContent = 'ONLINE: 0W - 0L';
           btnLogin.style.display = 'inline-block';
           btnSignup.style.display = 'inline-block';
           btnKey.style.display = 'none';
@@ -1259,7 +1314,6 @@
         }
       }
 
-      // Restore saved session on load
       (function restoreSavedSession() {
         const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
         if (savedUser) {
@@ -1347,6 +1401,7 @@
             rapidTimer: localP.rapidTimer,
             tripleTimer: localP.tripleTimer,
             shield: localP.shield,
+            chargeTime: localP.chargeTime,
             round: matchState.roundNumber,
             scores: matchState.scores,
             phase: matchState.phase
@@ -1460,7 +1515,10 @@
             pilotId: currentUser.pilotId,
             isOwner: Boolean(currentUser.isOwner),
             isAdmin: myIsAdmin,
+            arenaMode: matchState.arenaMode,
             arenaIndex: matchState.arenaIndex,
+            roundMaxHp: matchState.roundMaxHp,
+            powerupsEnabled: matchState.powerupsEnabled,
             bans: currentUser.isOwner ? getBannedMap() : {}
           });
 
@@ -1472,7 +1530,10 @@
               startNewMatch();
               sendPeerPacket({
                 type: 'START_MATCH',
-                arenaIndex: matchState.arenaIndex
+                arenaMode: matchState.arenaMode,
+                arenaIndex: matchState.arenaIndex,
+                roundMaxHp: matchState.roundMaxHp,
+                powerupsEnabled: matchState.powerupsEnabled
               });
             }, 220);
           }
@@ -1541,9 +1602,12 @@
 
           case 'START_MATCH': {
             onlineState.active = true;
+            if (typeof data.arenaMode === 'string') matchState.arenaMode = data.arenaMode;
             if (typeof data.arenaIndex === 'number' && ARENAS[data.arenaIndex]) {
               matchState.arenaIndex = data.arenaIndex;
             }
+            if (typeof data.roundMaxHp === 'number') matchState.roundMaxHp = data.roundMaxHp;
+            if (typeof data.powerupsEnabled === 'boolean') matchState.powerupsEnabled = data.powerupsEnabled;
             startNewMatch();
             break;
           }
@@ -1581,8 +1645,8 @@
             remoteP.rapidTimer = Number(data.rapidTimer) || 0;
             remoteP.tripleTimer = Number(data.tripleTimer) || 0;
             remoteP.shield = Boolean(data.shield);
+            remoteP.chargeTime = Number(data.chargeTime) || 0;
 
-            // Auto-catchup if a background browser tab missed a round transition
             if (onlineState.role === 'guest' && typeof data.round === 'number' && data.round > matchState.roundNumber) {
               if (Array.isArray(data.scores) && data.scores.length === 2) {
                 matchState.scores = [Number(data.scores[0]) || 0, Number(data.scores[1]) || 0];
@@ -1597,7 +1661,7 @@
             const remoteIdx = onlineState.role === 'guest' ? 0 : 1;
             const remoteP = players[remoteIdx];
             if (remoteP && remoteP.alive) {
-              spawnPlayerLasers(remoteP, true);
+              spawnPlayerLasers(remoteP, true, Boolean(data.isMega));
             }
             break;
           }
@@ -1662,6 +1726,9 @@
           case 'NEXT_ROUND': {
             if (onlineState.role === 'guest') {
               matchState.roundNumber = Number(data.roundNumber) || (matchState.roundNumber + 1);
+              if (typeof data.arenaIndex === 'number' && ARENAS[data.arenaIndex]) {
+                matchState.arenaIndex = data.arenaIndex;
+              }
               startRound();
             }
             break;
@@ -1689,75 +1756,81 @@
       }
 
       // =========================================================================
-      // 5. ARENA DEFINITIONS (3 DISTINCT 16-BIT STAGES)
+      // 5. ARENA DEFINITIONS (MATCHING ORIGINAL IN-GAME SCREENSHOT)
       // =========================================================================
       const ARENAS = [
         {
-          name: 'NEON ROOF',
-          skyTop: '#0b0e1f',
-          skyBottom: '#1a1f3c',
-          gridColor: 'rgba(56, 242, 255, 0.06)',
-          accent: '#38f2ff',
+          name: 'NEON TOWERS',
+          skyTop: '#0d1024',
+          skyBottom: '#161b38',
+          gridColor: 'rgba(56, 242, 255, 0.08)',
+          accent: '#22f2ff',
           trim: '#ff4791',
           platforms: [
             { x: 0, y: 492, w: 960, h: 48, solid: true },
-            { x: 95, y: 382, w: 220, h: 18, solid: false },
-            { x: 645, y: 382, w: 220, h: 18, solid: false },
-            { x: 345, y: 278, w: 270, h: 18, solid: false },
-            { x: 155, y: 175, w: 170, h: 18, solid: false },
-            { x: 635, y: 175, w: 170, h: 18, solid: false }
+            { x: 70, y: 392, w: 185, h: 16, solid: false },
+            { x: 705, y: 392, w: 185, h: 16, solid: false },
+            { x: 188, y: 286, w: 205, h: 16, solid: false },
+            { x: 567, y: 286, w: 205, h: 16, solid: false },
+            { x: 342, y: 184, w: 276, h: 16, solid: false },
+            { x: 446, y: 416, w: 68, h: 76, solid: true },
+            { x: 458, y: 364, w: 44, h: 52, solid: true }
           ]
         },
         {
           name: 'CYBER LAB',
-          skyTop: '#081718',
-          skyBottom: '#112a2e',
-          gridColor: 'rgba(74, 222, 128, 0.06)',
+          skyTop: '#09181c',
+          skyBottom: '#112a32',
+          gridColor: 'rgba(74, 222, 128, 0.07)',
           accent: '#4ade80',
           trim: '#facc15',
           platforms: [
             { x: 0, y: 492, w: 960, h: 48, solid: true },
-            { x: 215, y: 388, w: 185, h: 18, solid: false },
-            { x: 560, y: 388, w: 185, h: 18, solid: false },
-            { x: 40, y: 280, w: 165, h: 18, solid: false },
-            { x: 755, y: 280, w: 165, h: 18, solid: false },
-            { x: 330, y: 215, w: 300, h: 18, solid: false },
+            { x: 215, y: 388, w: 185, h: 16, solid: false },
+            { x: 560, y: 388, w: 185, h: 16, solid: false },
+            { x: 40, y: 280, w: 165, h: 16, solid: false },
+            { x: 755, y: 280, w: 165, h: 16, solid: false },
+            { x: 330, y: 215, w: 300, h: 16, solid: false },
             { x: 448, y: 412, w: 64, h: 80, solid: true }
           ]
         },
         {
-          name: 'SKY TOWERS',
-          skyTop: '#160b24',
-          skyBottom: '#291542',
-          gridColor: 'rgba(244, 114, 182, 0.06)',
-          accent: '#f472b6',
-          trim: '#38f2ff',
+          name: 'NEON ROOF',
+          skyTop: '#0b0e1f',
+          skyBottom: '#1a1f3c',
+          gridColor: 'rgba(56, 242, 255, 0.07)',
+          accent: '#38f2ff',
+          trim: '#ff4791',
           platforms: [
             { x: 0, y: 492, w: 960, h: 48, solid: true },
-            { x: 60, y: 372, w: 200, h: 18, solid: false },
-            { x: 700, y: 372, w: 200, h: 18, solid: false },
-            { x: 190, y: 256, w: 220, h: 18, solid: false },
-            { x: 550, y: 256, w: 220, h: 18, solid: false },
-            { x: 350, y: 148, w: 260, h: 18, solid: false },
-            { x: 440, y: 402, w: 80, h: 90, solid: true },
-            { x: 456, y: 342, w: 48, h: 60, solid: true }
+            { x: 95, y: 382, w: 220, h: 16, solid: false },
+            { x: 645, y: 382, w: 220, h: 16, solid: false },
+            { x: 345, y: 278, w: 270, h: 16, solid: false },
+            { x: 155, y: 175, w: 170, h: 16, solid: false },
+            { x: 635, y: 175, w: 170, h: 16, solid: false }
           ]
         }
       ];
 
       // =========================================================================
-      // 6. GAME STATE & ENTITIES
+      // 6. GAME STATE & ENTITIES (WITH HOLD 3S = MEGA BLAST & ORIGINAL RULES)
       // =========================================================================
       const GRAVITY = 1520;
       const JUMP_VELOCITY = -610;
       const MOVE_SPEED = 315;
       const LASER_SPEED = 780;
 
+      const ARENA_MODES = ['CYCLE ALL', 'NEON TOWERS', 'CYBER LAB', 'NEON ROOF'];
+      const HP_CHOICES = [3, 5, 1];
+
       const matchState = {
-        mode: 'cpu',         // 'cpu' | 'pvp' | 'online'
-        difficulty: 'ace',   // 'rookie' | 'ace' | 'cyber'
+        mode: 'cpu',             // 'cpu' | 'pvp' | 'online'
+        difficulty: 'extreme',   // 'easy' | 'medium' | 'hard' | 'impossible' | 'extreme'
+        arenaMode: 'CYCLE ALL',
         arenaIndex: 0,
-        phase: 'MENU',       // 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'ROUND_OVER' | 'GAME_OVER'
+        roundMaxHp: 3,
+        powerupsEnabled: true,
+        phase: 'MENU',           // 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'ROUND_OVER' | 'GAME_OVER'
         paused: false,
         roundsToWin: 5,
         roundNumber: 1,
@@ -1783,7 +1856,7 @@
 
       function initStars() {
         bgStars = [];
-        for (let i = 0; i < 42; i++) {
+        for (let i = 0; i < 48; i++) {
           bgStars.push({
             x: Math.random() * LOGICAL_W,
             y: Math.random() * 440,
@@ -1796,11 +1869,12 @@
 
       function createPlayer(index) {
         const isP1 = index === 0;
+        const maxHp = matchState.roundMaxHp || 3;
         return {
           index,
-          name: isP1 ? 'P1 CYAN' : (matchState.mode === 'cpu' ? 'CPU BOT' : 'P2 MAGENTA'),
+          name: isP1 ? 'P1' : (matchState.mode === 'cpu' ? `CPU (${matchState.difficulty.toUpperCase()})` : 'P2'),
           color: isP1 ? '#38f2ff' : '#ff4791',
-          visorColor: isP1 ? '#fef08a' : '#38f2ff',
+          visorColor: isP1 ? '#fef08a' : '#facc15',
           darkColor: isP1 ? '#0284c7' : '#be185d',
           x: isP1 ? 135 : LOGICAL_W - 165,
           y: 444,
@@ -1810,14 +1884,16 @@
           vy: 0,
           facing: isP1 ? 1 : -1,
           grounded: false,
-          hp: 3,
-          maxHp: 3,
+          hp: maxHp,
+          maxHp: maxHp,
           alive: true,
           shootCooldown: 0,
           invulnTimer: 0,
           rapidTimer: 0,
           tripleTimer: 0,
           shield: false,
+          chargeTime: 0,
+          wasHoldingFire: false,
           walkFrame: 0,
           aiThinkTimer: 0,
           aiMoveDir: 0,
@@ -1841,7 +1917,7 @@
 
       function updatePlayerNamesFromSetup() {
         if (!players.length) return;
-        const myTag = formatPilotDisplayName(currentUser, 'P1 CYAN');
+        const myTag = formatPilotDisplayName(currentUser, 'P1');
 
         if (matchState.mode === 'online' && onlineState.active) {
           const oppTag = onlineState.opponentIsOwner
@@ -1858,13 +1934,14 @@
           players[0].name = myTag;
           players[1].name = matchState.mode === 'cpu'
             ? `CPU (${matchState.difficulty.toUpperCase()})`
-            : 'P2 MAGENTA';
+            : 'P2';
         }
         document.getElementById('p1-name').textContent = players[0].name;
         document.getElementById('p2-name').textContent = players[1].name;
       }
 
       function resetPlayersForRound() {
+        const maxHp = matchState.roundMaxHp || 3;
         players.forEach((p, idx) => {
           p.x = idx === 0 ? 135 : LOGICAL_W - 165;
           p.y = 444;
@@ -1872,13 +1949,16 @@
           p.vy = 0;
           p.facing = idx === 0 ? 1 : -1;
           p.grounded = true;
-          p.hp = p.maxHp;
+          p.maxHp = maxHp;
+          p.hp = maxHp;
           p.alive = true;
           p.shootCooldown = 0.25;
           p.invulnTimer = 0.45;
           p.rapidTimer = 0;
           p.tripleTimer = 0;
           p.shield = false;
+          p.chargeTime = 0;
+          p.wasHoldingFire = false;
         });
         onlineState.targetX = onlineState.role === 'guest' ? 135 : LOGICAL_W - 165;
         onlineState.targetY = 444;
@@ -1982,6 +2062,14 @@
       // =========================================================================
       // 8. MATCH & ROUND FLOW
       // =========================================================================
+      function resolveArenaForRound(roundNum) {
+        if (matchState.arenaMode === 'CYCLE ALL') {
+          return (roundNum - 1) % ARENAS.length;
+        }
+        const idx = ARENAS.findIndex((a) => a.name === matchState.arenaMode);
+        return idx >= 0 ? idx : 0;
+      }
+
       function startNewMatch() {
         if (matchState.mode === 'online' && !onlineState.active) {
           showArenaBanner('CREATE OR JOIN A ROOM CODE FIRST!', '#facc15', 1.5);
@@ -1991,12 +2079,16 @@
         matchState.scores = [0, 0];
         matchState.roundNumber = 1;
         matchState.paused = false;
+        matchState.arenaIndex = resolveArenaForRound(1);
         initPlayers();
         startRound();
       }
 
       function startRound() {
         hideAllOverlays();
+        if (matchState.mode !== 'online' || onlineState.role === 'host') {
+          matchState.arenaIndex = resolveArenaForRound(matchState.roundNumber);
+        }
         lasers = [];
         particles = [];
         crates = [];
@@ -2042,7 +2134,7 @@
       }
 
       // =========================================================================
-      // 9. COMBAT, LASERS, POWER-UPS & PARTICLES
+      // 9. COMBAT, LASERS, HOLD 3S = MEGA BLAST, POWER-UPS & PARTICLES
       // =========================================================================
       function spawnParticles(x, y, color, count = 14) {
         for (let i = 0; i < count; i++) {
@@ -2061,41 +2153,66 @@
         }
       }
 
-      function spawnPlayerLasers(p, fromRemote = false) {
+      function spawnPlayerLasers(p, fromRemote = false, isMega = false) {
         if (!p.alive) return;
-        if (!fromRemote && p.shootCooldown > 0) return;
+        if (!fromRemote && !isMega && p.shootCooldown > 0) return;
 
         const isTriple = p.tripleTimer > 0;
-        p.shootCooldown = p.rapidTimer > 0 ? 0.16 : 0.34;
-        sfx.shoot(isTriple);
+        p.shootCooldown = isMega ? 0.45 : (p.rapidTimer > 0 ? 0.16 : 0.34);
+        sfx.shoot(isTriple, isMega);
 
         if (!fromRemote && matchState.mode === 'online' && onlineState.active) {
-          sendPeerPacket({ type: 'SHOOT' });
+          sendPeerPacket({ type: 'SHOOT', isMega });
         }
 
-        const muzzleX = p.facing === 1 ? p.x + p.w + 4 : p.x - 18;
-        const muzzleY = p.y + 17;
-        const angles = isTriple ? [-0.14, 0, 0.14] : [0];
+        const muzzleX = p.facing === 1 ? p.x + p.w + 4 : p.x - (isMega ? 28 : 18);
+        const muzzleY = isMega ? p.y + 11 : p.y + 17;
+        const angles = isMega ? [0] : (isTriple ? [-0.14, 0, 0.14] : [0]);
 
         angles.forEach((ang) => {
           lasers.push({
             ownerIndex: p.index,
             x: muzzleX,
             y: muzzleY,
-            w: 16,
-            h: 5,
-            vx: Math.cos(ang) * LASER_SPEED * p.facing,
+            w: isMega ? 28 : 16,
+            h: isMega ? 14 : 5,
+            vx: Math.cos(ang) * (isMega ? LASER_SPEED * 1.15 : LASER_SPEED) * p.facing,
             vy: Math.sin(ang) * LASER_SPEED,
-            color: p.color,
-            bouncesLeft: 2,
-            life: 2.2
+            color: isMega ? '#facc15' : p.color,
+            damage: isMega ? 2 : 1,
+            bouncesLeft: isMega ? 3 : 2,
+            life: 2.3
           });
         });
 
-        spawnParticles(muzzleX + 6, muzzleY + 2, p.color, 5);
+        spawnParticles(muzzleX + 6, muzzleY + 2, isMega ? '#facc15' : p.color, isMega ? 12 : 5);
+      }
+
+      function handlePlayerFireInput(p, fireHeld, dt) {
+        if (!p || !p.alive) return;
+        if (fireHeld) {
+          if (!p.wasHoldingFire) {
+            spawnPlayerLasers(p, false, false);
+            p.chargeTime = 0;
+          } else {
+            p.chargeTime += dt;
+            if (p.shootCooldown <= 0 && p.chargeTime < 2.6) {
+              spawnPlayerLasers(p, false, false);
+            }
+          }
+          p.wasHoldingFire = true;
+        } else {
+          if (p.wasHoldingFire && p.chargeTime >= 3.0) {
+            spawnPlayerLasers(p, false, true);
+            showArenaBanner(`${p.name}: MEGA BLAST!`, '#facc15', 0.9);
+          }
+          p.wasHoldingFire = false;
+          p.chargeTime = 0;
+        }
       }
 
       function spawnCrate() {
+        if (!matchState.powerupsEnabled) return;
         if (matchState.mode === 'online' && onlineState.active && onlineState.role === 'guest') return;
         const types = ['RAPID', 'TRIPLE', 'SHIELD', 'HEAL'];
         const type = types[Math.floor(Math.random() * types.length)];
@@ -2134,17 +2251,20 @@
       }
 
       // =========================================================================
-      // 10. BOT AI CONTROLLER
+      // 10. BOT AI CONTROLLER (EASY / MEDIUM / HARD / IMPOSSIBLE / EXTREME)
       // =========================================================================
       function updateBotAI(bot, target, dt) {
         if (!bot.alive || !target.alive) return;
 
         bot.aiThinkTimer -= dt;
-        const diffConfig = {
-          rookie: { interval: 0.34, aimTolerance: 48, jumpChance: 0.015, dodgeChance: 0.25 },
-          ace:    { interval: 0.17, aimTolerance: 26, jumpChance: 0.032, dodgeChance: 0.65 },
-          cyber:  { interval: 0.08, aimTolerance: 14, jumpChance: 0.050, dodgeChance: 0.92 }
-        }[matchState.difficulty];
+        const diffTable = {
+          easy:       { interval: 0.38, aimTolerance: 52, jumpChance: 0.015, dodgeChance: 0.20, speedMult: 0.74 },
+          medium:     { interval: 0.24, aimTolerance: 36, jumpChance: 0.025, dodgeChance: 0.45, speedMult: 0.86 },
+          hard:       { interval: 0.16, aimTolerance: 24, jumpChance: 0.036, dodgeChance: 0.68, speedMult: 0.96 },
+          impossible: { interval: 0.09, aimTolerance: 16, jumpChance: 0.048, dodgeChance: 0.88, speedMult: 1.02 },
+          extreme:    { interval: 0.06, aimTolerance: 13, jumpChance: 0.056, dodgeChance: 0.95, speedMult: 1.05 }
+        };
+        const diffConfig = diffTable[matchState.difficulty] || diffTable.extreme;
 
         if (bot.aiThinkTimer <= 0) {
           bot.aiThinkTimer = diffConfig.interval;
@@ -2155,15 +2275,15 @@
 
           let desiredDir = 0;
           const absDx = Math.abs(dx);
-          if (absDx > 340) {
+          if (absDx > 330) {
             desiredDir = Math.sign(dx);
-          } else if (absDx < 150) {
+          } else if (absDx < 145) {
             desiredDir = -Math.sign(dx);
           } else {
             desiredDir = Math.random() < 0.5 ? 1 : -1;
           }
 
-          if (crates.length > 0 && matchState.difficulty !== 'rookie') {
+          if (crates.length > 0 && matchState.difficulty !== 'easy') {
             const c = crates[0];
             desiredDir = Math.sign((c.x + c.w / 2) - (bot.x + bot.w / 2));
           }
@@ -2172,7 +2292,7 @@
 
           bot.aiWantJump = false;
           if (bot.grounded) {
-            if (dy < -55 && Math.random() < 0.72) {
+            if (dy < -55 && Math.random() < 0.74) {
               bot.aiWantJump = true;
             } else if (Math.random() < diffConfig.jumpChance * 5) {
               bot.aiWantJump = true;
@@ -2183,9 +2303,9 @@
             const l = lasers[i];
             if (l.ownerIndex !== bot.index) {
               const distX = (bot.x + bot.w / 2) - l.x;
-              const approaching = (l.vx > 0 && distX > 0 && distX < 210) ||
-                                  (l.vx < 0 && distX < 0 && distX > -210);
-              const sameHeight = Math.abs((bot.y + bot.h / 2) - l.y) < 38;
+              const approaching = (l.vx > 0 && distX > 0 && distX < 220) ||
+                                  (l.vx < 0 && distX < 0 && distX > -220);
+              const sameHeight = Math.abs((bot.y + bot.h / 2) - l.y) < 40;
               if (approaching && sameHeight && bot.grounded && Math.random() < diffConfig.dodgeChance) {
                 bot.aiWantJump = true;
                 break;
@@ -2198,7 +2318,7 @@
           bot.aiWantShoot = alignedY && facingTarget;
         }
 
-        bot.vx = bot.aiMoveDir * MOVE_SPEED * (matchState.difficulty === 'rookie' ? 0.78 : 0.96);
+        bot.vx = bot.aiMoveDir * MOVE_SPEED * diffConfig.speedMult;
         if (bot.aiWantJump && bot.grounded) {
           bot.vy = JUMP_VELOCITY;
           bot.grounded = false;
@@ -2316,7 +2436,11 @@
               if (onlineState.role === 'host') {
                 matchState.roundNumber++;
                 startRound();
-                sendPeerPacket({ type: 'NEXT_ROUND', roundNumber: matchState.roundNumber });
+                sendPeerPacket({
+                  type: 'NEXT_ROUND',
+                  roundNumber: matchState.roundNumber,
+                  arenaIndex: matchState.arenaIndex
+                });
               }
             } else {
               matchState.roundNumber++;
@@ -2337,7 +2461,7 @@
             const moveLeft = keys['KeyA'] || keys['ArrowLeft'] || touchState.left;
             const moveRight = keys['KeyD'] || keys['ArrowRight'] || touchState.right;
             const jumpPressed = keys['KeyW'] || keys['ArrowUp'] || touchState.jump;
-            const firePressed = keys['Space'] || keys['KeyF'] || keys['Enter'] || touchState.fire;
+            const firePressed = keys['Space'] || keys['KeyF'] || keys['Enter'] || keys['KeyM'] || touchState.fire;
 
             localP.vx = 0;
             if (moveLeft) { localP.vx = -MOVE_SPEED; localP.facing = -1; }
@@ -2347,9 +2471,7 @@
               localP.grounded = false;
               sfx.jump();
             }
-            if (firePressed) {
-              spawnPlayerLasers(localP);
-            }
+            handlePlayerFireInput(localP, firePressed, dt);
           }
 
           updatePlayerPhysics(localP, dt);
@@ -2376,9 +2498,7 @@
               p1.grounded = false;
               sfx.jump();
             }
-            if (p1Shoot) {
-              spawnPlayerLasers(p1);
-            }
+            handlePlayerFireInput(p1, p1Shoot, dt);
           }
 
           const p2 = players[1];
@@ -2394,9 +2514,8 @@
                 p2.grounded = false;
                 sfx.jump();
               }
-              if (keys['Enter'] || keys['ShiftRight'] || keys['Slash']) {
-                spawnPlayerLasers(p2);
-              }
+              const p2Shoot = keys['Enter'] || keys['KeyM'] || keys['ShiftRight'] || keys['Slash'];
+              handlePlayerFireInput(p2, p2Shoot, dt);
             }
           }
 
@@ -2405,10 +2524,12 @@
         }
 
         // Power-up Crate Spawning & Collection
-        crateSpawnTimer -= dt;
-        if (crateSpawnTimer <= 0 && crates.length < 2) {
-          spawnCrate();
-          crateSpawnTimer = 7.5 + Math.random() * 4;
+        if (matchState.powerupsEnabled) {
+          crateSpawnTimer -= dt;
+          if (crateSpawnTimer <= 0 && crates.length < 2) {
+            spawnCrate();
+            crateSpawnTimer = 7.5 + Math.random() * 4;
+          }
         }
 
         const arena = ARENAS[matchState.arenaIndex];
@@ -2517,11 +2638,12 @@
               }
               updateHud();
             } else {
-              target.hp--;
+              target.hp -= (l.damage || 1);
               target.invulnTimer = 0.55;
               updateHud();
 
               if (target.hp <= 0) {
+                target.hp = 0;
                 target.alive = false;
                 sfx.ko();
                 triggerShake(13, 0.35);
@@ -2544,7 +2666,7 @@
       }
 
       // =========================================================================
-      // 12. 16-BIT PIXEL ART RENDERER
+      // 12. 16-BIT PIXEL ART RENDERER (MATCHING ORIGINAL IN-GAME LOOK)
       // =========================================================================
       function drawBackground(arena, nowSec) {
         const grad = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
@@ -2555,13 +2677,13 @@
 
         ctx.strokeStyle = arena.gridColor;
         ctx.lineWidth = 1;
-        for (let x = 0; x < LOGICAL_W; x += 32) {
+        for (let x = 0; x < LOGICAL_W; x += 36) {
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, LOGICAL_H);
           ctx.stroke();
         }
-        for (let y = 0; y < LOGICAL_H; y += 32) {
+        for (let y = 0; y < LOGICAL_H; y += 36) {
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(LOGICAL_W, y);
@@ -2569,20 +2691,21 @@
         }
 
         bgStars.forEach((s) => {
-          const alpha = 0.35 + 0.65 * Math.abs(Math.sin(nowSec * 2 + s.blinkOffset));
+          const alpha = 0.4 + 0.6 * Math.abs(Math.sin(nowSec * 2 + s.blinkOffset));
           ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
           ctx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
         });
 
-        ctx.fillStyle = 'rgba(6, 8, 18, 0.55)';
+        ctx.fillStyle = 'rgba(7, 9, 20, 0.65)';
         const towers = [
-          [20, 220, 80, 280],
-          [120, 260, 70, 240],
-          [220, 190, 95, 310],
-          [380, 240, 75, 260],
-          [590, 210, 90, 290],
-          [730, 270, 80, 230],
-          [850, 185, 85, 315]
+          [36, 260, 56, 235],
+          [120, 210, 62, 285],
+          [214, 280, 68, 215],
+          [354, 232, 64, 263],
+          [538, 222, 68, 273],
+          [662, 270, 68, 225],
+          [788, 206, 62, 289],
+          [868, 255, 56, 240]
         ];
         towers.forEach(([tx, ty, tw, th]) => {
           ctx.fillRect(tx, ty, tw, th);
@@ -2591,15 +2714,15 @@
 
       function drawPlatforms(arena) {
         arena.platforms.forEach((plat) => {
-          ctx.fillStyle = '#151b30';
+          ctx.fillStyle = '#151b32';
           ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
 
           ctx.fillStyle = arena.accent;
           ctx.fillRect(plat.x, plat.y, plat.w, 4);
 
           ctx.fillStyle = '#334155';
-          for (let rx = plat.x + 12; rx < plat.x + plat.w - 12; rx += 24) {
-            ctx.fillRect(rx, plat.y + 8, 8, 4);
+          for (let rx = plat.x + 12; rx < plat.x + plat.w - 12; rx += 22) {
+            ctx.fillRect(rx, plat.y + 7, 8, 3);
           }
 
           if (plat.solid && plat.y < 490) {
@@ -2613,11 +2736,11 @@
       function drawPlayerSprite(p, nowSec) {
         if (!p || !p.alive) return;
 
-        // Subtle shimmer when invulnerable, but NEVER make any player invisible
+        // Subtle shimmer when invulnerable, never hiding either player
         const isInvuln = p.invulnTimer > 0 && matchState.phase === 'PLAYING';
         ctx.save();
         if (isInvuln) {
-          ctx.globalAlpha = 0.72 + 0.28 * Math.sin(nowSec * 36);
+          ctx.globalAlpha = 0.75 + 0.25 * Math.sin(nowSec * 36);
         }
 
         const x = Math.round(Number.isFinite(p.x) ? p.x : (p.index === 0 ? 135 : LOGICAL_W - 165));
@@ -2627,6 +2750,22 @@
           ctx.strokeStyle = `rgba(96, 165, 250, ${0.65 + 0.3 * Math.sin(nowSec * 10)})`;
           ctx.lineWidth = 3;
           ctx.strokeRect(x - 6, y - 6, p.w + 12, p.h + 12);
+        }
+
+        // Charge gauge above player when holding fire for Mega Blast
+        if (p.chargeTime > 0.35) {
+          const pct = Math.min(1, p.chargeTime / 3.0);
+          ctx.fillStyle = '#090b14';
+          ctx.fillRect(x - 2, y - 10, p.w + 4, 5);
+          ctx.fillStyle = pct >= 1 ? '#facc15' : '#ff4791';
+          ctx.fillRect(x - 1, y - 9, Math.round((p.w + 2) * pct), 3);
+
+          // Glowing orb at blaster tip while charging
+          ctx.fillStyle = pct >= 1 ? '#facc15' : p.color;
+          const orbX = p.facing === 1 ? x + p.w + 12 : x - 12;
+          ctx.beginPath();
+          ctx.arc(orbX, y + 21, 4 + pct * 4, 0, Math.PI * 2);
+          ctx.fill();
         }
 
         const legOffset = p.grounded ? Math.round(Math.sin(p.walkFrame) * 3) : 2;
@@ -2668,14 +2807,15 @@
           ctx.fillRect(x - 6, y + 20, 4, 4);
         }
 
-        // Crisp floating pilot tag above each player in Online 1v1 so both players are always easy to spot
+        // Crisp floating pilot tag above each player in Online 1v1
         if (matchState.mode === 'online') {
+          const tagY = p.chargeTime > 0.35 ? y - 16 : y - 10;
           ctx.font = '7px "Press Start 2P", monospace';
           ctx.textAlign = 'center';
           ctx.fillStyle = '#05060b';
-          ctx.fillText(p.name, x + p.w / 2 + 1, y - 11);
+          ctx.fillText(p.name, x + p.w / 2 + 1, tagY + 1);
           ctx.fillStyle = p.color;
-          ctx.fillText(p.name, x + p.w / 2, y - 12);
+          ctx.fillText(p.name, x + p.w / 2, tagY);
         }
 
         ctx.restore();
@@ -2719,12 +2859,12 @@
       function drawBanner() {
         if (matchState.bannerTimer <= 0 || !matchState.bannerText) return;
         ctx.save();
-        ctx.font = '22px "Press Start 2P", monospace';
+        ctx.font = '20px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         const cx = LOGICAL_W / 2;
-        const cy = 96;
+        const cy = 92;
         ctx.fillStyle = '#05060b';
         ctx.fillText(matchState.bannerText, cx + 4, cy + 4);
         ctx.fillStyle = matchState.bannerColor;
@@ -2817,10 +2957,17 @@
       bindTouchButton('touch-jump', 'jump');
       bindTouchButton('touch-fire', 'fire');
 
-      document.querySelectorAll('#mode-options .retro-btn').forEach((btn) => {
+      // Mode Selector
+      document.querySelectorAll('#mode-options .choice-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-          document.querySelectorAll('#mode-options .retro-btn').forEach((b) => b.classList.remove('selected'));
-          btn.classList.add('selected');
+          document.querySelectorAll('#mode-options .choice-btn').forEach((b) => {
+            b.classList.remove('selected', 'selected-green');
+          });
+          if (btn.dataset.mode === 'online') {
+            btn.classList.add('selected-green');
+          } else {
+            btn.classList.add('selected');
+          }
           matchState.mode = btn.dataset.mode;
           document.getElementById('difficulty-box').style.display = matchState.mode === 'cpu' ? 'flex' : 'none';
           document.getElementById('online-panel').style.display = matchState.mode === 'online' ? 'flex' : 'none';
@@ -2828,35 +2975,51 @@
           if (matchState.mode !== 'online' && onlineState.active) {
             disconnectOnline();
           }
-
-          const p2Help = document.getElementById('p2-help-text');
-          if (matchState.mode === 'cpu') {
-            p2Help.innerHTML = '<span class="p2-color">CPU BOT:</span><br />ADAPTIVE AI OPPONENT<br />WATCH OUT FOR RICOCHETS!';
-          } else if (matchState.mode === 'pvp') {
-            p2Help.innerHTML = '<span class="p2-color">P2 (MAGENTA):</span><br />MOVE: ◀ / ▶  •  JUMP: ▲<br />SHOOT: ENTER or /';
-          } else {
-            p2Help.innerHTML = '<span class="p2-color">ONLINE 1V1:</span><br />MOVE: A/D or ◀/▶  •  JUMP: W/▲<br />SHOOT: SPACE / F / ENTER';
-          }
           updateAccountUI();
           updatePlayerNamesFromSetup();
         });
       });
 
-      document.querySelectorAll('#diff-options .retro-btn').forEach((btn) => {
+      // CPU Difficulty Selector (EASY / MEDIUM / HARD / IMPOSSIBLE / EXTREME)
+      document.querySelectorAll('#diff-options .choice-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-          document.querySelectorAll('#diff-options .retro-btn').forEach((b) => b.classList.remove('selected'));
-          btn.classList.add('selected');
+          document.querySelectorAll('#diff-options .choice-btn').forEach((b) => {
+            b.classList.remove('selected', 'selected-orange');
+          });
+          if (btn.dataset.diff === 'extreme' || btn.dataset.diff === 'impossible') {
+            btn.classList.add('selected-orange');
+          } else {
+            btn.classList.add('selected');
+          }
           matchState.difficulty = btn.dataset.diff;
           updatePlayerNamesFromSetup();
         });
       });
 
-      document.querySelectorAll('#arena-options .retro-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#arena-options .retro-btn').forEach((b) => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          matchState.arenaIndex = Number(btn.dataset.arena);
-        });
+      // Arena & Round Rules Cycling Buttons (Matches Original Screenshot)
+      let arenaModeIdx = 0;
+      document.getElementById('btn-cycle-arena').addEventListener('click', (e) => {
+        arenaModeIdx = (arenaModeIdx + 1) % ARENA_MODES.length;
+        matchState.arenaMode = ARENA_MODES[arenaModeIdx];
+        matchState.arenaIndex = resolveArenaForRound(1);
+        e.target.textContent = `ARENA: ${matchState.arenaMode}`;
+      });
+
+      let hpChoiceIdx = 0;
+      document.getElementById('btn-cycle-hp').addEventListener('click', (e) => {
+        hpChoiceIdx = (hpChoiceIdx + 1) % HP_CHOICES.length;
+        matchState.roundMaxHp = HP_CHOICES[hpChoiceIdx];
+        e.target.textContent = `ROUND HP: ${matchState.roundMaxHp} ${matchState.roundMaxHp === 1 ? 'HIT' : 'HITS'}`;
+        if (players.length) {
+          players.forEach((p) => { p.maxHp = matchState.roundMaxHp; p.hp = matchState.roundMaxHp; });
+          updateHud();
+        }
+      });
+
+      document.getElementById('btn-toggle-powerups').addEventListener('click', (e) => {
+        matchState.powerupsEnabled = !matchState.powerupsEnabled;
+        e.target.textContent = `POWERUPS: ${matchState.powerupsEnabled ? 'ON' : 'OFF'}`;
+        e.target.classList.toggle('selected', matchState.powerupsEnabled);
       });
 
       // Auth & Account Key Modal Controls
