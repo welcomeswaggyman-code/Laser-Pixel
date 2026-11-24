@@ -4,11 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>PIXEL LASER — 16-Bit Arena Blaster</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    
     * {
       box-sizing: border-box;
       user-select: none;
@@ -3357,9 +3355,11 @@
         requestAnimationFrame(gameLoop);
       }
 
-      if (document.readyState === 'complete') {
-        bootstrapGame();
+      // Ensure game boots reliably on GitHub Pages even if document is already interactive/complete
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(bootstrapGame, 1);
       } else {
+        window.addEventListener('DOMContentLoaded', bootstrapGame);
         window.addEventListener('load', bootstrapGame);
       }
     })();
