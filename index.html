@@ -4,9 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>PIXEL LASER — 16-Bit Arena Blaster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-    
     * {
       box-sizing: border-box;
       user-select: none;
@@ -20,7 +22,7 @@
       height: 100%;
       background-color: #0b0e1a;
       color: #f8fafc;
-      font-family: 'Press Start 2P', monospace;
+      font-family: 'Press Start 2P', 'Courier New', Courier, monospace;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -170,7 +172,7 @@
     }
 
     .hud-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 7px;
       padding: 4px 7px;
       background: #141a2e;
@@ -206,7 +208,7 @@
       image-rendering: crisp-edges;
     }
 
-    /* Screen Overlays (Original Sleek Rounded Dark Navy Card Style) */
+    /* Screen Overlays */
     .overlay-screen {
       position: absolute;
       inset: 0;
@@ -274,7 +276,7 @@
       margin: 0;
     }
 
-    /* Section Boxes Matching Original Screenshot */
+    /* Section Boxes */
     .menu-section-box {
       width: 100%;
       background: #0d1221;
@@ -302,7 +304,7 @@
     }
 
     .choice-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 8.5px;
       padding: 9px 10px;
       flex: 1;
@@ -393,7 +395,7 @@
     }
 
     .mini-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 7px;
       padding: 6px 9px;
       background: #171f36;
@@ -429,7 +431,7 @@
 
     /* Gold Rounded Start Match Button */
     .gold-start-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 13px;
       padding: 13px 30px;
       background: linear-gradient(180deg, #fde047 0%, #eab308 100%);
@@ -452,7 +454,7 @@
     }
 
     .retro-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 9px;
       padding: 10px 14px;
       background: #171f36;
@@ -469,7 +471,7 @@
     }
 
     .retro-input {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 8.5px;
       padding: 9px 10px;
       background: #090d1a;
@@ -586,7 +588,7 @@
     }
 
     .touch-btn {
-      font-family: 'Press Start 2P', monospace;
+      font-family: inherit;
       font-size: 12px;
       width: 52px;
       height: 46px;
@@ -1016,7 +1018,9 @@
       }
 
       function saveBannedMap(map) {
-        localStorage.setItem(BANS_STORAGE_KEY, JSON.stringify(map));
+        try {
+          localStorage.setItem(BANS_STORAGE_KEY, JSON.stringify(map));
+        } catch (e) {}
       }
 
       function isAccountBanned(username, pilotId) {
@@ -1076,7 +1080,9 @@
       }
 
       function saveUsersMap(map) {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(map));
+        try {
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(map));
+        } catch (e) {}
       }
 
       function simpleHash(str) {
@@ -1165,11 +1171,13 @@
           user.isAdmin = !user.isOwner && (ADMIN_PILOT_IDS.has(pid) || shown === ADMIN_USERNAME);
         }
         currentUser = user;
-        if (user) {
-          localStorage.setItem(SESSION_STORAGE_KEY, user.username.toLowerCase());
-        } else {
-          localStorage.removeItem(SESSION_STORAGE_KEY);
-        }
+        try {
+          if (user) {
+            localStorage.setItem(SESSION_STORAGE_KEY, user.username.toLowerCase());
+          } else {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+          }
+        } catch (e) {}
         updateAccountUI();
         updatePlayerNamesFromSetup();
       }
@@ -1324,24 +1332,26 @@
       }
 
       (function restoreSavedSession() {
-        const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
-        if (savedUser) {
-          const users = getUsersMap();
-          const u = users[savedUser];
-          if (u && !isAccountBanned(u.username, u.pilotId)) {
-            setActiveUser(u);
-          } else {
-            localStorage.removeItem(SESSION_STORAGE_KEY);
+        try {
+          const savedUser = localStorage.getItem(SESSION_STORAGE_KEY);
+          if (savedUser) {
+            const users = getUsersMap();
+            const u = users[savedUser];
+            if (u && !isAccountBanned(u.username, u.pilotId)) {
+              setActiveUser(u);
+            } else {
+              localStorage.removeItem(SESSION_STORAGE_KEY);
+            }
           }
-        }
+        } catch (e) {}
       })();
 
       // =========================================================================
-      // 4. ONLINE 1V1 P2P MULTIPLAYER (PEERJS + BACKGROUND-PROOF HEARTBEAT)
+      // 4. ONLINE 1V1 P2P MULTIPLAYER (PEERJS WITH SAFE FALLBACK)
       // =========================================================================
       const onlineState = {
         active: false,
-        role: null, // 'host' | 'guest'
+        role: null,
         peer: null,
         conn: null,
         roomCode: '',
@@ -1410,6 +1420,7 @@
             rapidTimer: localP.rapidTimer,
             tripleTimer: localP.tripleTimer,
             shield: localP.shield,
+            invisible: localP.invisible,
             chargeTime: localP.chargeTime,
             round: matchState.roundNumber,
             scores: matchState.scores,
@@ -1446,13 +1457,17 @@
 
       function createOnlineRoom() {
         if (!currentUser) return;
+        const statusEl = document.getElementById('online-status-text');
+        if (typeof Peer === 'undefined') {
+          statusEl.textContent = 'ONLINE RELAY SCRIPT BLOCKED BY NETWORK — USE 1 VS CPU OR 1 VS 1 LOCAL!';
+          return;
+        }
         disconnectOnline();
         const code = generateRoomCode();
         onlineState.role = 'host';
         onlineState.roomCode = code;
 
         const codeEl = document.getElementById('room-code-display');
-        const statusEl = document.getElementById('online-status-text');
         codeEl.textContent = code;
         codeEl.style.display = 'inline-block';
         statusEl.textContent = 'CONNECTING TO RELAY...';
@@ -1479,16 +1494,19 @@
 
       function joinOnlineRoom(rawCode) {
         if (!currentUser) return;
+        const statusEl = document.getElementById('online-status-text');
+        if (typeof Peer === 'undefined') {
+          statusEl.textContent = 'ONLINE RELAY SCRIPT BLOCKED BY NETWORK — USE 1 VS CPU OR 1 VS 1 LOCAL!';
+          return;
+        }
         const code = String(rawCode || '').trim().toUpperCase();
         if (code.length < 4) {
-          document.getElementById('online-status-text').textContent = 'ENTER A VALID 5-LETTER ROOM CODE!';
+          statusEl.textContent = 'ENTER A VALID 5-LETTER ROOM CODE!';
           return;
         }
         disconnectOnline();
         onlineState.role = 'guest';
         onlineState.roomCode = code;
-
-        const statusEl = document.getElementById('online-status-text');
         statusEl.textContent = `JOINING ROOM ${code}...`;
 
         const peer = new Peer();
@@ -2230,9 +2248,6 @@
             p.chargeTime = 0;
           } else {
             p.chargeTime += dt;
-            if (p.shootCooldown <= 0 && p.chargeTime < 2.6) {
-              spawnPlayerLasers(p, false, false);
-            }
           }
           p.wasHoldingFire = true;
         } else {
@@ -2770,8 +2785,6 @@
       function drawPlayerSprite(p, nowSec) {
         if (!p || !p.alive) return;
 
-        // If pilot activated the [OWNER]/[ADMIN] Invisible command:
-        // Completely invisible to opponents, translucent stealth shimmer for the user who activated it
         if (p.invisible) {
           const isOnline = matchState.mode === 'online' && onlineState.active;
           const myIdx = isOnline ? (onlineState.role === 'guest' ? 1 : 0) : 0;
@@ -3349,15 +3362,17 @@
         if (sfx.enabled) sfx.powerup();
       });
 
+      let gameBooted = false;
       function bootstrapGame() {
+        if (gameBooted) return;
+        gameBooted = true;
         initPlayers();
         updateHud();
         requestAnimationFrame(gameLoop);
       }
 
-      // Ensure game boots reliably on GitHub Pages even if document is already interactive/complete
       if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(bootstrapGame, 1);
+        bootstrapGame();
       } else {
         window.addEventListener('DOMContentLoaded', bootstrapGame);
         window.addEventListener('load', bootstrapGame);
