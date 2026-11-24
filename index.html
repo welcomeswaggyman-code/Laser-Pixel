@@ -39,7 +39,7 @@
       background: #0d1122;
     }
 
-    /* Top Arcade Status Bar (Matches Original Screenshot) */
+    /* Top Arcade Status Bar */
     #top-hud {
       display: flex;
       align-items: center;
@@ -118,6 +118,7 @@
     .badge-chip.rapid { background: #4ade80; }
     .badge-chip.shield { background: #60a5fa; }
     .badge-chip.triple { background: #f472b6; }
+    .badge-chip.invis { background: #c084fc; }
 
     #center-hud {
       display: flex;
@@ -216,11 +217,16 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 14px;
+      justify-content: flex-start;
+      padding: 46px 14px 18px;
       z-index: 20;
       text-align: center;
       overflow-y: auto;
+    }
+
+    .overlay-screen.centered-modal {
+      justify-content: center;
+      padding-top: 16px;
     }
 
     .overlay-screen.hidden {
@@ -232,13 +238,14 @@
       border: 2px solid #273454;
       border-radius: 14px;
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.72), inset 0 0 0 1px rgba(56, 242, 255, 0.08);
-      padding: 20px 24px;
+      padding: 18px 22px;
       max-width: 780px;
       width: 100%;
+      margin: auto 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 11px;
+      gap: 10px;
     }
 
     .game-title {
@@ -275,11 +282,11 @@
       background: #0d1221;
       border: 1.5px solid #222d4a;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 8px;
+      gap: 7px;
     }
 
     .section-label {
@@ -299,7 +306,7 @@
     .choice-btn {
       font-family: 'Press Start 2P', monospace;
       font-size: 8.5px;
-      padding: 10px 10px;
+      padding: 9px 10px;
       flex: 1;
       min-width: 110px;
       background: #171f36;
@@ -338,7 +345,7 @@
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.28);
     }
 
-    /* Pilot Account Strip (Matches Original Top Box) */
+    /* Pilot Account Strip */
     .pilot-strip {
       width: 100%;
       background: #0d1221;
@@ -403,7 +410,7 @@
     .mini-btn.danger { background: #e11d48; color: #fff; border-color: #fb7185; }
     .mini-btn.cyan { background: #0e384c; color: #38f2ff; border-color: #22d3ee; }
 
-    /* Controls Grid Matching Original Screenshot */
+    /* Controls Grid */
     .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -415,18 +422,18 @@
       background: #0d1221;
       border: 1.5px solid #222d4a;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       font-size: 7.5px;
-      line-height: 1.75;
+      line-height: 1.7;
       text-align: left;
       color: #e2e8f0;
     }
 
-    /* Gold Rounded Start Match Button (Matches Original Screenshot) */
+    /* Gold Rounded Start Match Button */
     .gold-start-btn {
       font-family: 'Press Start 2P', monospace;
       font-size: 13px;
-      padding: 14px 30px;
+      padding: 13px 30px;
       background: linear-gradient(180deg, #fde047 0%, #eab308 100%);
       color: #090b14;
       border: 2px solid #fef08a;
@@ -514,21 +521,22 @@
     /* Top-Center Owner / Admin Console Bar */
     #admin-floating-bar {
       position: absolute;
-      top: 10px;
+      top: 8px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 50;
+      z-index: 60;
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       gap: 6px;
-      background: rgba(13, 18, 33, 0.96);
+      background: rgba(13, 18, 33, 0.97);
       border: 1.5px solid #facc15;
       border-radius: 8px;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
-      padding: 6px 10px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75);
+      padding: 5px 10px;
       font-size: 7px;
       align-items: center;
+      max-width: 96%;
     }
 
     #admin-floating-bar.hidden {
@@ -659,16 +667,18 @@
     <main id="arena-wrapper">
       <canvas id="gameCanvas"></canvas>
 
-      <!-- Owner / Admin Floating Bar -->
+      <!-- Owner / Admin Floating Bar (Docked Top-Center) -->
       <div id="admin-floating-bar" class="hidden">
         <span id="admin-role-tag" style="color:#facc15;">[OWNER] JAWSHY</span>
         <button class="mini-btn gold" id="btn-admin-god">+POWERS</button>
+        <button class="mini-btn cyan" id="btn-admin-heal">HEAL</button>
+        <button class="mini-btn cyan" id="btn-admin-invis">INVISIBLE</button>
         <button class="mini-btn cyan" id="btn-admin-kill">KO FOE</button>
         <button class="mini-btn cyan" id="btn-admin-win">WIN MATCH</button>
         <button class="mini-btn danger" id="btn-admin-mod">MODERATION</button>
       </div>
 
-      <!-- Title / Setup Overlay (Original Sleek Dark Navy UI) -->
+      <!-- Title / Setup Overlay -->
       <section class="overlay-screen" id="start-overlay">
         <div class="pixel-card">
           <h1 class="game-title">
@@ -743,6 +753,7 @@
               <button class="choice-btn selected" id="btn-cycle-arena">ARENA: CYCLE ALL</button>
               <button class="choice-btn selected" id="btn-cycle-hp">ROUND HP: 3 HITS</button>
               <button class="choice-btn selected" id="btn-toggle-powerups">POWERUPS: ON</button>
+              <button class="choice-btn selected" id="btn-toggle-ricochet">RICOCHET: ON</button>
             </div>
           </div>
 
@@ -765,7 +776,7 @@
       </section>
 
       <!-- Auth Modal (Log In / Sign Up) -->
-      <section class="overlay-screen hidden" id="auth-overlay">
+      <section class="overlay-screen centered-modal hidden" id="auth-overlay">
         <div class="pixel-card" style="max-width:440px;">
           <h2 id="auth-modal-title" style="font-size:15px; color:#38f2ff; margin:0;">PILOT LOG IN</h2>
           <p id="auth-modal-sub" style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
@@ -789,7 +800,7 @@
       </section>
 
       <!-- Account Key Backup Modal -->
-      <section class="overlay-screen hidden" id="key-overlay">
+      <section class="overlay-screen centered-modal hidden" id="key-overlay">
         <div class="pixel-card" style="max-width:500px;">
           <h2 style="font-size:14px; color:#facc15; margin:0;">PILOT ACCOUNT KEY</h2>
           <p style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
@@ -805,7 +816,7 @@
       </section>
 
       <!-- Owner Moderation Panel (Exclusive to jawshy) -->
-      <section class="overlay-screen hidden" id="mod-overlay">
+      <section class="overlay-screen centered-modal hidden" id="mod-overlay">
         <div class="pixel-card" style="max-width:560px;">
           <h2 style="font-size:14px; color:#facc15; margin:0;">[OWNER] JAWSHY MODERATION</h2>
           <p style="font-size:8px; color:#94a3b8; line-height:1.5; margin:0;">
@@ -822,7 +833,7 @@
       </section>
 
       <!-- Pause Overlay -->
-      <section class="overlay-screen hidden" id="pause-overlay">
+      <section class="overlay-screen centered-modal hidden" id="pause-overlay">
         <div class="pixel-card" style="max-width: 420px;">
           <h2 style="font-size: 18px; color: #facc15; margin: 0;">GAME PAUSED</h2>
           <p style="font-size: 8px; color: #94a3b8;">TAKE A BREATHER, PILOT.</p>
@@ -835,7 +846,7 @@
       </section>
 
       <!-- Match Victory Overlay -->
-      <section class="overlay-screen hidden" id="gameover-overlay">
+      <section class="overlay-screen centered-modal hidden" id="gameover-overlay">
         <div class="pixel-card" style="max-width: 480px;">
           <div style="font-size: 9px; color: #facc15;">MATCH COMPLETE</div>
           <h2 id="winner-headline" style="font-size: 20px; color: #38f2ff; margin: 0; line-height: 1.3;">
@@ -1519,6 +1530,7 @@
             arenaIndex: matchState.arenaIndex,
             roundMaxHp: matchState.roundMaxHp,
             powerupsEnabled: matchState.powerupsEnabled,
+            ricochetEnabled: matchState.ricochetEnabled,
             bans: currentUser.isOwner ? getBannedMap() : {}
           });
 
@@ -1533,7 +1545,8 @@
                 arenaMode: matchState.arenaMode,
                 arenaIndex: matchState.arenaIndex,
                 roundMaxHp: matchState.roundMaxHp,
-                powerupsEnabled: matchState.powerupsEnabled
+                powerupsEnabled: matchState.powerupsEnabled,
+                ricochetEnabled: matchState.ricochetEnabled
               });
             }, 220);
           }
@@ -1608,6 +1621,7 @@
             }
             if (typeof data.roundMaxHp === 'number') matchState.roundMaxHp = data.roundMaxHp;
             if (typeof data.powerupsEnabled === 'boolean') matchState.powerupsEnabled = data.powerupsEnabled;
+            if (typeof data.ricochetEnabled === 'boolean') matchState.ricochetEnabled = data.ricochetEnabled;
             startNewMatch();
             break;
           }
@@ -1645,6 +1659,7 @@
             remoteP.rapidTimer = Number(data.rapidTimer) || 0;
             remoteP.tripleTimer = Number(data.tripleTimer) || 0;
             remoteP.shield = Boolean(data.shield);
+            remoteP.invisible = Boolean(data.invisible);
             remoteP.chargeTime = Number(data.chargeTime) || 0;
 
             if (onlineState.role === 'guest' && typeof data.round === 'number' && data.round > matchState.roundNumber) {
@@ -1735,13 +1750,23 @@
           }
 
           case 'ADMIN_ACTION': {
+            const sender = players[onlineState.role === 'guest' ? 0 : 1];
             if (data.action === 'POWERS') {
-              const sender = players[onlineState.role === 'guest' ? 0 : 1];
               if (sender) {
                 sender.hp = sender.maxHp;
                 sender.shield = true;
                 sender.rapidTimer = 25;
                 sender.tripleTimer = 25;
+                updateHud();
+              }
+            } else if (data.action === 'HEAL') {
+              if (sender) {
+                sender.hp = Math.min(sender.maxHp, sender.hp + 1);
+                updateHud();
+              }
+            } else if (data.action === 'INVISIBLE') {
+              if (sender) {
+                sender.invisible = Boolean(data.value);
                 updateHud();
               }
             } else if (data.action === 'WIN_MATCH') {
@@ -1756,7 +1781,7 @@
       }
 
       // =========================================================================
-      // 5. ARENA DEFINITIONS (MATCHING ORIGINAL IN-GAME SCREENSHOT)
+      // 5. ARENA DEFINITIONS
       // =========================================================================
       const ARENAS = [
         {
@@ -1813,7 +1838,7 @@
       ];
 
       // =========================================================================
-      // 6. GAME STATE & ENTITIES (WITH HOLD 3S = MEGA BLAST & ORIGINAL RULES)
+      // 6. GAME STATE & ENTITIES
       // =========================================================================
       const GRAVITY = 1520;
       const JUMP_VELOCITY = -610;
@@ -1830,6 +1855,7 @@
         arenaIndex: 0,
         roundMaxHp: 3,
         powerupsEnabled: true,
+        ricochetEnabled: true,
         phase: 'MENU',           // 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'ROUND_OVER' | 'GAME_OVER'
         paused: false,
         roundsToWin: 5,
@@ -1892,6 +1918,7 @@
           rapidTimer: 0,
           tripleTimer: 0,
           shield: false,
+          invisible: false,
           chargeTime: 0,
           wasHoldingFire: false,
           walkFrame: 0,
@@ -1957,6 +1984,7 @@
           p.rapidTimer = 0;
           p.tripleTimer = 0;
           p.shield = false;
+          p.invisible = false;
           p.chargeTime = 0;
           p.wasHoldingFire = false;
         });
@@ -1998,6 +2026,12 @@
             const b = document.createElement('span');
             b.className = 'badge-chip triple';
             b.textContent = '3-WAY';
+            badgesContainer.appendChild(b);
+          }
+          if (p.invisible) {
+            const b = document.createElement('span');
+            b.className = 'badge-chip invis';
+            b.textContent = 'CLOAK';
             badgesContainer.appendChild(b);
           }
         });
@@ -2168,6 +2202,7 @@
         const muzzleX = p.facing === 1 ? p.x + p.w + 4 : p.x - (isMega ? 28 : 18);
         const muzzleY = isMega ? p.y + 11 : p.y + 17;
         const angles = isMega ? [0] : (isTriple ? [-0.14, 0, 0.14] : [0]);
+        const baseBounces = matchState.ricochetEnabled ? (isMega ? 3 : 2) : 0;
 
         angles.forEach((ang) => {
           lasers.push({
@@ -2179,8 +2214,9 @@
             vx: Math.cos(ang) * (isMega ? LASER_SPEED * 1.15 : LASER_SPEED) * p.facing,
             vy: Math.sin(ang) * LASER_SPEED,
             color: isMega ? '#facc15' : p.color,
-            damage: isMega ? 2 : 1,
-            bouncesLeft: isMega ? 3 : 2,
+            damage: isMega ? 999 : 1,
+            isMega,
+            bouncesLeft: baseBounces,
             life: 2.3
           });
         });
@@ -2666,7 +2702,7 @@
       }
 
       // =========================================================================
-      // 12. 16-BIT PIXEL ART RENDERER (MATCHING ORIGINAL IN-GAME LOOK)
+      // 12. 16-BIT PIXEL ART RENDERER
       // =========================================================================
       function drawBackground(arena, nowSec) {
         const grad = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
@@ -2736,10 +2772,21 @@
       function drawPlayerSprite(p, nowSec) {
         if (!p || !p.alive) return;
 
-        // Subtle shimmer when invulnerable, never hiding either player
+        // If pilot activated the [OWNER]/[ADMIN] Invisible command:
+        // Completely invisible to opponents, translucent stealth shimmer for the user who activated it
+        if (p.invisible) {
+          const isOnline = matchState.mode === 'online' && onlineState.active;
+          const myIdx = isOnline ? (onlineState.role === 'guest' ? 1 : 0) : 0;
+          if (p.index !== myIdx) {
+            return;
+          }
+        }
+
         const isInvuln = p.invulnTimer > 0 && matchState.phase === 'PLAYING';
         ctx.save();
-        if (isInvuln) {
+        if (p.invisible) {
+          ctx.globalAlpha = 0.24 + 0.08 * Math.sin(nowSec * 12);
+        } else if (isInvuln) {
           ctx.globalAlpha = 0.75 + 0.25 * Math.sin(nowSec * 36);
         }
 
@@ -2752,7 +2799,6 @@
           ctx.strokeRect(x - 6, y - 6, p.w + 12, p.h + 12);
         }
 
-        // Charge gauge above player when holding fire for Mega Blast
         if (p.chargeTime > 0.35) {
           const pct = Math.min(1, p.chargeTime / 3.0);
           ctx.fillStyle = '#090b14';
@@ -2760,7 +2806,6 @@
           ctx.fillStyle = pct >= 1 ? '#facc15' : '#ff4791';
           ctx.fillRect(x - 1, y - 9, Math.round((p.w + 2) * pct), 3);
 
-          // Glowing orb at blaster tip while charging
           ctx.fillStyle = pct >= 1 ? '#facc15' : p.color;
           const orbX = p.facing === 1 ? x + p.w + 12 : x - 12;
           ctx.beginPath();
@@ -2807,7 +2852,6 @@
           ctx.fillRect(x - 6, y + 20, 4, 4);
         }
 
-        // Crisp floating pilot tag above each player in Online 1v1
         if (matchState.mode === 'online') {
           const tagY = p.chargeTime > 0.35 ? y - 16 : y - 10;
           ctx.font = '7px "Press Start 2P", monospace';
@@ -2980,7 +3024,7 @@
         });
       });
 
-      // CPU Difficulty Selector (EASY / MEDIUM / HARD / IMPOSSIBLE / EXTREME)
+      // CPU Difficulty Selector
       document.querySelectorAll('#diff-options .choice-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('#diff-options .choice-btn').forEach((b) => {
@@ -2996,7 +3040,7 @@
         });
       });
 
-      // Arena & Round Rules Cycling Buttons (Matches Original Screenshot)
+      // Arena & Round Rules Cycling Buttons
       let arenaModeIdx = 0;
       document.getElementById('btn-cycle-arena').addEventListener('click', (e) => {
         arenaModeIdx = (arenaModeIdx + 1) % ARENA_MODES.length;
@@ -3020,6 +3064,12 @@
         matchState.powerupsEnabled = !matchState.powerupsEnabled;
         e.target.textContent = `POWERUPS: ${matchState.powerupsEnabled ? 'ON' : 'OFF'}`;
         e.target.classList.toggle('selected', matchState.powerupsEnabled);
+      });
+
+      document.getElementById('btn-toggle-ricochet').addEventListener('click', (e) => {
+        matchState.ricochetEnabled = !matchState.ricochetEnabled;
+        e.target.textContent = `RICOCHET: ${matchState.ricochetEnabled ? 'ON' : 'OFF'}`;
+        e.target.classList.toggle('selected', matchState.ricochetEnabled);
       });
 
       // Auth & Account Key Modal Controls
@@ -3123,6 +3173,44 @@
           showArenaBanner(`${roleLabel} POWERS ACTIVATED!`, '#facc15', 1.1);
           if (matchState.mode === 'online' && onlineState.active) {
             sendPeerPacket({ type: 'ADMIN_ACTION', action: 'POWERS' });
+          }
+        }
+      });
+
+      document.getElementById('btn-admin-heal').addEventListener('click', () => {
+        if (!hasElevatedCommands(currentUser)) return;
+        const myIdx = (matchState.mode === 'online' && onlineState.role === 'guest') ? 1 : 0;
+        const me = players[myIdx];
+        if (me && me.alive) {
+          me.hp = Math.min(me.maxHp, me.hp + 1);
+          sfx.powerup();
+          spawnParticles(me.x + me.w / 2, me.y + me.h / 2, '#4ade80', 14);
+          updateHud();
+          const roleLabel = currentUser.isOwner ? '[OWNER]' : '[ADMIN]';
+          showArenaBanner(`${roleLabel} +1 HP HEALED!`, '#4ade80', 1.0);
+          if (matchState.mode === 'online' && onlineState.active) {
+            sendPeerPacket({ type: 'ADMIN_ACTION', action: 'HEAL' });
+          }
+        }
+      });
+
+      document.getElementById('btn-admin-invis').addEventListener('click', () => {
+        if (!hasElevatedCommands(currentUser)) return;
+        const myIdx = (matchState.mode === 'online' && onlineState.role === 'guest') ? 1 : 0;
+        const me = players[myIdx];
+        if (me) {
+          me.invisible = !me.invisible;
+          sfx.powerup();
+          spawnParticles(me.x + me.w / 2, me.y + me.h / 2, '#c084fc', 16);
+          updateHud();
+          const roleLabel = currentUser.isOwner ? '[OWNER]' : '[ADMIN]';
+          showArenaBanner(
+            me.invisible ? `${roleLabel} INVISIBILITY: ON!` : `${roleLabel} INVISIBILITY: OFF!`,
+            '#c084fc',
+            1.1
+          );
+          if (matchState.mode === 'online' && onlineState.active) {
+            sendPeerPacket({ type: 'ADMIN_ACTION', action: 'INVISIBLE', value: me.invisible });
           }
         }
       });
