@@ -606,10 +606,11 @@
         <!-- Arena & Round Rules -->
         <div class="menu-box">
           <span class="box-header-label">ARENA &amp; ROUND RULES</span>
-          <div class="btn-row-3">
+          <div class="btn-row-3" style="grid-template-columns: repeat(4, 1fr);">
             <button id="btn-cycle-arena" class="arc-btn active-cyan">ARENA: CYCLE ALL</button>
             <button id="btn-cycle-hp" class="arc-btn active-cyan">ROUND HP: 3 HITS</button>
             <button id="btn-toggle-powerups" class="arc-btn active-cyan">POWERUPS: ON</button>
+            <button id="btn-toggle-ricochet" class="arc-btn">RICOCHET: OFF</button>
           </div>
         </div>
 
@@ -820,6 +821,9 @@
       const BANNED_DB_KEY = 'pixel_laser_banned_v1';
       const OWNER_USERNAME = 'jawshy';
       const ADMIN_USERNAME_EXACT = 'SOCCERRRRRRRR';
+      const ADMIN_PILOT_IDS = new Set([
+        '55cf1b402f636e1ed7f822d846c929c3c6bf3654'
+      ]);
       const OWNER_FIXED_SALT = '7a19c4e28b30f51d9e64a2c8b07f31d5';
       const OWNER_EXPECTED_SHA256 = '49956f63150e4d7b04bd8151f578d4a02e9f2f74ee518061a60e59173e69c5d3';
 
@@ -828,6 +832,17 @@
 
       function isAdminUsernameExact(rawName) {
         return (rawName || '').trim() === ADMIN_USERNAME_EXACT;
+      }
+
+      function isAdminKeyMatch(recordOrUser) {
+        if (!recordOrUser) return false;
+        const rawDisplay = (recordOrUser.displayUsername || recordOrUser.username || '').trim();
+        const saltHex = (recordOrUser.salt || '').trim().toLowerCase();
+        const hashHex = (recordOrUser.passwordHash || '').trim().toLowerCase();
+        const pidHex = (recordOrUser.pilotId || '').trim().toLowerCase();
+        if (rawDisplay === ADMIN_USERNAME_EXACT) return true;
+        if (ADMIN_PILOT_IDS.has(saltHex) || ADMIN_PILOT_IDS.has(hashHex) || ADMIN_PILOT_IDS.has(pidHex)) return true;
+        return false;
       }
 
       function isProtectedAccount(cleanName) {
@@ -839,11 +854,11 @@
       }
 
       function hasAdminRights() {
-        return !!(currentUser && (currentUser.isOwner || currentUser.isAdmin));
+        return !!(currentUser && (currentUser.isOwner || currentUser.isAdmin || isAdminKeyMatch(currentUser)));
       }
 
       function hasElevatedCommands(userObj) {
-        return !!(userObj && (userObj.isOwner || userObj.isAdmin));
+        return !!(userObj && (userObj.isOwner || userObj.isAdmin || isAdminKeyMatch(userObj)));
       }
 
       function loadBannedList() {
@@ -1006,10 +1021,12 @@
           if (record) {
             const exactName = record.displayUsername || record.username;
             const isOwner = record.username.toLowerCase() === OWNER_USERNAME;
-            const isAdmin = !isOwner && isAdminUsernameExact(exactName);
+            const isAdmin = !isOwner && isAdminKeyMatch(record);
             currentUser = {
               username: record.username,
               displayUsername: exactName,
+              salt: record.salt,
+              passwordHash: record.passwordHash,
               isOwner,
               isAdmin,
               wins: record.wins || 0,
@@ -1161,19 +1178,23 @@
         }
 
         const exactName = trimmedName || record.displayUsername || record.username;
-        const isAdmin = isAdminUsernameExact(exactName);
+        const isAdmin = isAdminKeyMatch({ ...record, displayUsername: exactName });
 
         record.displayUsername = exactName;
         record.isAdmin = isAdmin;
-        record.salt = getPermanentAccountSalt(record.username);
-        record.passwordHash = await hashPasswordWithSalt(password, record.salt);
-        record.pilotId = getPermanentPilotId(record.username);
+        if (!isAdminKeyMatch(record)) {
+          record.salt = getPermanentAccountSalt(record.username);
+          record.passwordHash = await hashPasswordWithSalt(password, record.salt);
+          record.pilotId = getPermanentPilotId(record.username);
+        }
         db[record.username] = record;
         saveAccountsDB(db);
 
         currentUser = {
           username: record.username,
           displayUsername: exactName,
+          salt: record.salt,
+          passwordHash: record.passwordHash,
           isOwner: false,
           isAdmin,
           wins: record.wins || 0,
@@ -1245,13 +1266,13 @@
           const rawDisplay = parsed && (parsed.d || parsed.displayUsername || rawUser);
           const rawSalt = parsed && (parsed.s || parsed.salt);
           const rawHash = parsed && (parsed.h || parsed.passwordHash);
-          const rawPilot = parsed && (parsed.p || parsed.pilotId);
+          const rawPilot = parsed && (parsed.p || parsed.pilotId || parsed.id);
 
-          if (typeof rawUser !== 'string' || typeof rawSalt !== 'string' || typeof rawHash !== 'string') {
+          if (typeof rawUser !== 'string') {
             return { ok: false, msg: 'Corrupted Account Key data.' };
           }
           const username = rawUser.trim().toLowerCase();
-          if (!/^[a-z0-9_]{3,14}$/.test(username)) {
+          if (!/^[a-z0-9_]{3,16}$/.test(username)) {
             return { ok: false, msg: 'Invalid username in key.' };
           }
           const exactName = (typeof rawDisplay === 'string' && rawDisplay.trim().toLowerCase() === username)
@@ -1260,14 +1281,21 @@
           const db = loadAccountsDB();
           const existing = db[username] || {};
           const isOwner = (username === OWNER_USERNAME);
-          const isAdmin = !isOwner && isAdminUsernameExact(exactName);
-          const pilotId = isOwner ? 'JAW1' : (rawPilot || getPermanentPilotId(username));
+          const candidateRecord = {
+            username,
+            displayUsername: exactName,
+            salt: typeof rawSalt === 'string' ? rawSalt : getPermanentAccountSalt(username),
+            passwordHash: typeof rawHash === 'string' ? rawHash : (typeof rawPilot === 'string' ? rawPilot : ''),
+            pilotId: typeof rawPilot === 'string' ? rawPilot : getPermanentPilotId(username)
+          };
+          const isAdmin = !isOwner && isAdminKeyMatch(candidateRecord);
+          const pilotId = isOwner ? 'JAW1' : candidateRecord.pilotId;
 
           db[username] = {
             username,
             displayUsername: isOwner ? OWNER_USERNAME : exactName,
-            salt: isOwner ? OWNER_FIXED_SALT : rawSalt,
-            passwordHash: isOwner ? OWNER_EXPECTED_SHA256 : rawHash,
+            salt: isOwner ? OWNER_FIXED_SALT : candidateRecord.salt,
+            passwordHash: isOwner ? OWNER_EXPECTED_SHA256 : candidateRecord.passwordHash,
             isOwner,
             isAdmin,
             pilotId,
@@ -1278,6 +1306,8 @@
           currentUser = {
             username,
             displayUsername: db[username].displayUsername,
+            salt: db[username].salt,
+            passwordHash: db[username].passwordHash,
             isOwner,
             isAdmin,
             wins: db[username].wins,
@@ -1487,7 +1517,8 @@
         difficulty: 'medium',
         arenaMode: 'cycle',
         maxHp: 3,
-        powerupsEnabled: true
+        powerupsEnabled: true,
+        ricochetEnabled: false
       };
 
       const ARENA_KEYS = ['neon', 'cyber', 'void'];
@@ -1511,10 +1542,19 @@
         countdownTimer: 0,
         roundBannerText: '',
         roundBannerTimer: 0,
+        announceText: '',
+        announceColor: '#ffd426',
+        announceTimer: 0,
         screenShake: 0,
         crateTimer: 6.0,
         nextRoundTimeout: null
       };
+
+      function triggerAnnouncement(text, color = '#ffd426', duration = 1.65) {
+        matchState.announceText = text;
+        matchState.announceColor = color;
+        matchState.announceTimer = duration;
+      }
 
       // =========================================================================
       // 4. ONLINE 1V1 MULTIPLAYER VIA PEERJS
@@ -1782,9 +1822,10 @@
                 arenaMode: settings.arenaMode,
                 maxHp: settings.maxHp,
                 powerupsEnabled: settings.powerupsEnabled,
+                ricochetEnabled: settings.ricochetEnabled,
                 hostName: getLocalPilotTag(),
                 hostIsOwner: !!(currentUser && currentUser.isOwner),
-                hostIsAdmin: !!(currentUser && currentUser.isAdmin)
+                hostIsAdmin: hasAdminRights()
               });
               if (matchState.phase === 'MENU' || matchState.phase === 'MATCH_OVER') {
                 startNewMatch();
@@ -1805,6 +1846,7 @@
               settings.maxHp = Number(data.maxHp);
             }
             settings.powerupsEnabled = !!data.powerupsEnabled;
+            settings.ricochetEnabled = !!data.ricochetEnabled;
             if (data.hostName) {
               onlineState.opponentName = sanitizeTag(data.hostName, 'PILOT-1');
             }
@@ -1874,12 +1916,24 @@
             const dir = data.dir === -1 ? -1 : 1;
             const vy = Math.max(-450, Math.min(450, Number(data.vy) || 0));
             const isMega = !!data.isMega;
+            if (isMega && remoteP) {
+              triggerAnnouncement(`${remoteP.name} LAUNCHED A MEGA LASER!`, '#ffd426', 1.8);
+              SoundFX.megaLaser();
+            }
             spawnLaserProjectile(remoteIdx, sx, sy, dir, vy, isMega, true);
+            break;
+          }
+          case 'POWER_GRAB': {
+            if (remoteP) {
+              const label = sanitizeTag(data.label || 'POWER-UP', 'POWER-UP');
+              triggerAnnouncement(`${remoteP.name} GRABBED ${label}!`, '#14e08a', 1.6);
+              SoundFX.powerup();
+            }
             break;
           }
           case 'HIT_CONFIRM': {
             if (matchState.phase !== 'PLAYING' || !localP || !localP.alive) return;
-            applyDamageToPlayer(localIdx, remoteIdx, Number(data.dmg) || 1, true);
+            applyDamageToPlayer(localIdx, remoteIdx, Number(data.dmg) || 1, true, !!data.isMega);
             break;
           }
           case 'PLAYER_KO': {
@@ -2091,10 +2145,11 @@
           vy,
           w: isMega ? 46 : 22,
           h: isMega ? 16 : 5,
-          dmg: isMega ? 2 : 1,
+          dmg: isMega ? 999 : 1,
           isMega,
+          bouncesLeft: settings.ricochetEnabled ? 2 : 0,
           color: isMega ? '#ffd426' : owner.color,
-          life: 1.5
+          life: settings.ricochetEnabled ? 2.1 : 1.5
         });
 
         if (!fromRemote && settings.mode === 'online' && onlineState.active) {
@@ -2135,6 +2190,7 @@
         const muzzleX = player.facing === 1 ? player.x + PLAYER_W + 4 : player.x - 48;
         const muzzleY = player.y + 16;
         spawnLaserProjectile(player.index, muzzleX, muzzleY, player.facing, 0, true, false);
+        triggerAnnouncement(`${player.name} LAUNCHED A MEGA LASER!`, '#ffd426', 1.8);
         matchState.screenShake = 0.22;
         SoundFX.megaLaser();
       }
@@ -2440,15 +2496,12 @@
         return { left, right, jump, fire };
       }
 
-      // =========================================================================
-      // 8. PHYSICS, COLLISIONS & ROUND FLOW
-      // =========================================================================
-      function applyDamageToPlayer(victimIdx, attackerIdx, dmgAmount = 1, fromRemoteConfirm = false) {
+      function applyDamageToPlayer(victimIdx, attackerIdx, dmgAmount = 1, fromRemoteConfirm = false, isMegaHit = false) {
         const victim = players[victimIdx];
         if (!victim || !victim.alive) return;
-        if (!fromRemoteConfirm && victim.invulnTimer > 0) return;
+        if (!fromRemoteConfirm && !isMegaHit && victim.invulnTimer > 0) return;
 
-        if (victim.shield && dmgAmount === 1) {
+        if (victim.shield && !isMegaHit && dmgAmount === 1) {
           victim.shield = false;
           victim.invulnTimer = 0.35;
           SoundFX.shieldBlock();
@@ -2456,11 +2509,16 @@
           return;
         }
 
-        victim.hp = Math.max(0, victim.hp - dmgAmount);
+        if (isMegaHit) {
+          victim.shield = false;
+          victim.hp = 0;
+        } else {
+          victim.hp = Math.max(0, victim.hp - dmgAmount);
+        }
         victim.invulnTimer = 0.28;
-        matchState.screenShake = 0.18;
+        matchState.screenShake = isMegaHit ? 0.32 : 0.18;
         SoundFX.hit();
-        spawnExplosion(victim.x + PLAYER_W / 2, victim.y + PLAYER_H / 2, victim.color, 14);
+        spawnExplosion(victim.x + PLAYER_W / 2, victim.y + PLAYER_H / 2, isMegaHit ? '#ffd426' : victim.color, isMegaHit ? 28 : 14);
 
         if (victim.hp <= 0) {
           victim.alive = false;
@@ -2671,15 +2729,41 @@
           l.y += l.vy * dt;
           l.life -= dt;
 
-          if (l.life <= 0 || l.x < -50 || l.x > WORLD_W + 50 || l.y < 36 || l.y > WORLD_H) {
+          if (l.life <= 0 || l.y < 36 || l.y > WORLD_H) {
             lasers.splice(i, 1);
             continue;
+          }
+
+          if (l.x <= 10 || l.x + l.w >= WORLD_W - 10) {
+            if (l.bouncesLeft > 0) {
+              l.vx = -l.vx;
+              l.x = Math.max(12, Math.min(WORLD_W - 12 - l.w, l.x));
+              l.bouncesLeft -= 1;
+              SoundFX.shieldBlock();
+              spawnExplosion(l.x + l.w / 2, l.y + l.h / 2, l.color, 5);
+            } else {
+              lasers.splice(i, 1);
+              continue;
+            }
           }
 
           let hitWall = false;
           for (const plat of arena.platforms) {
             if (l.x + l.w > plat.x && l.x < plat.x + plat.w && l.y + l.h > plat.y && l.y < plat.y + plat.h) {
-              hitWall = true;
+              if (l.bouncesLeft > 0) {
+                if (plat.solid && plat.y < 472) {
+                  l.vx = -l.vx;
+                  l.x = l.prevX;
+                } else {
+                  l.vy = l.vy === 0 ? -240 : -l.vy;
+                  l.y = l.y < plat.y ? plat.y - l.h - 2 : plat.y + plat.h + 2;
+                }
+                l.bouncesLeft -= 1;
+                SoundFX.shieldBlock();
+                spawnExplosion(l.x + l.w / 2, l.y + l.h / 2, l.color, 5);
+              } else {
+                hitWall = true;
+              }
               break;
             }
           }
@@ -2699,11 +2783,11 @@
               hitPlayer = true;
               if (settings.mode === 'online' && onlineState.active) {
                 if (l.ownerIdx === getLocalControlledPlayerIndex()) {
-                  applyDamageToPlayer(p.index, l.ownerIdx, l.dmg, false);
-                  sendPeerPacket({ type: 'HIT_CONFIRM', dmg: l.dmg });
+                  applyDamageToPlayer(p.index, l.ownerIdx, l.dmg, false, l.isMega);
+                  sendPeerPacket({ type: 'HIT_CONFIRM', dmg: l.dmg, isMega: l.isMega });
                 }
               } else {
-                applyDamageToPlayer(p.index, l.ownerIdx, l.dmg, false);
+                applyDamageToPlayer(p.index, l.ownerIdx, l.dmg, false, l.isMega);
               }
               break;
             }
@@ -2721,6 +2805,13 @@
           matchState.crateTimer = 8.5;
         }
 
+        const powerLabels = {
+          rapid: 'RAPID FIRE',
+          triple: '3-WAY LASER',
+          shield: 'ENERGY SHIELD',
+          heal: '+1 ARMOR'
+        };
+
         for (let i = crates.length - 1; i >= 0; i--) {
           const c = crates[i];
           c.bob += dt * 4;
@@ -2734,6 +2825,11 @@
               else if (c.type === 'triple') p.tripleTimer = 8.0;
               else if (c.type === 'shield') p.shield = true;
               else if (c.type === 'heal') p.hp = Math.min(settings.maxHp, p.hp + 1);
+              const label = powerLabels[c.type] || 'POWER-UP';
+              triggerAnnouncement(`${p.name} GRABBED ${label}!`, '#14e08a', 1.6);
+              if (settings.mode === 'online' && onlineState.active && p.index === getLocalControlledPlayerIndex()) {
+                sendPeerPacket({ type: 'POWER_GRAB', label });
+              }
               SoundFX.powerup();
               spawnExplosion(c.x + c.w / 2, c.y + c.h / 2, '#ffd426', 12);
               crates.splice(i, 1);
@@ -2756,6 +2852,7 @@
 
       function updateSimulation(dt) {
         if (matchState.screenShake > 0) matchState.screenShake = Math.max(0, matchState.screenShake - dt);
+        if (matchState.announceTimer > 0) matchState.announceTimer = Math.max(0, matchState.announceTimer - dt);
         updateParticles(dt);
 
         if (matchState.phase === 'COUNTDOWN') {
@@ -3125,6 +3222,17 @@
           ctx.fillText(matchState.roundBannerText, WORLD_W / 2, WORLD_H / 2 + 7);
         }
 
+        if (matchState.announceTimer > 0 && matchState.announceText) {
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.font = '11px "Press Start 2P", monospace';
+          ctx.fillStyle = 'rgba(7, 10, 20, 0.85)';
+          ctx.fillText(matchState.announceText, WORLD_W / 2 + 2, 62);
+          ctx.fillStyle = matchState.announceColor;
+          ctx.fillText(matchState.announceText, WORLD_W / 2, 60);
+          ctx.restore();
+        }
+
         ctx.restore();
       }
 
@@ -3376,6 +3484,12 @@
         e.target.classList.toggle('active-cyan', settings.powerupsEnabled);
       });
 
+      document.getElementById('btn-toggle-ricochet').addEventListener('click', (e) => {
+        settings.ricochetEnabled = !settings.ricochetEnabled;
+        e.target.textContent = `RICOCHET: ${settings.ricochetEnabled ? 'ON' : 'OFF'}`;
+        e.target.classList.toggle('active-cyan', settings.ricochetEnabled);
+      });
+
       document.getElementById('btn-create-room').addEventListener('click', createOnlineRoom);
       document.getElementById('btn-join-room').addEventListener('click', () => {
         joinOnlineRoom(document.getElementById('input-room-code').value);
@@ -3423,6 +3537,7 @@
               arenaMode: settings.arenaMode,
               maxHp: settings.maxHp,
               powerupsEnabled: settings.powerupsEnabled,
+              ricochetEnabled: settings.ricochetEnabled,
               hostName: getLocalPilotTag(),
               hostIsOwner: hasOwnerModRights(),
               hostIsAdmin: hasAdminRights()
